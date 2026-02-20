@@ -2,6 +2,15 @@
 
 **Predicting backorder and overstock risk, plus demand and inventory levels, to reduce unfulfilled orders, excess inventory, and waste.**
 
+| | |
+|---|---|
+| **Institution** | Westminster University |
+| **Program** | Data Science |
+| **Course** | DATA-470 Capstone |
+| **Class of** | 2026 |
+| **Professor** | Dr. Liang Jingsai |
+| **Author** | Addy Cruz |
+
 ---
 
 ## About Dataset
