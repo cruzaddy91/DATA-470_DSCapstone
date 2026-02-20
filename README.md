@@ -2,6 +2,14 @@
 
 **Predicting backorder and overstock risk, plus demand and inventory levels, to reduce unfulfilled orders, excess inventory, and waste.**
 
+| | |
+|---|---|
+| **Institution** | Westminster University |
+| **Program** | Data Science |
+| **Course** | DATA-470 Capstone |
+| **Class of** | 2026 |
+| **Professor** | Dr. Liang Jingsai |
+
 ---
 
 ## About Dataset
@@ -36,7 +44,7 @@
 ## Project Structure
 
 ```
-dt-470_CAPSTONE/
+DATA-470_DSCapstone/
 ├── config/                 # Configuration (paths, model hyperparameters)
 │   ├── paths.yaml
 │   └── model_params.yaml
