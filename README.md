@@ -33,156 +33,190 @@
 
 ---
 
-### Tables (core and supporting files used in this project)
+## Project Structure
 
-Only the **core** (demand, inventory, order-to-delivery) and **supporting** (joins, units, organization) files are used. Other CSVs in the dataset (such as address, accounting, tax) are available for enrichment but are not required for this project.
+```
+dt-470_CAPSTONE/
+├── config/                 # Configuration (paths, model hyperparameters)
+│   ├── paths.yaml
+│   └── model_params.yaml
+├── data/                    # Data at each pipeline stage
+│   ├── raw/                 # Raw SAP CSVs from Kaggle
+│   │   ├── main/            # Core transactional tables (vbak, vbap, vbep, etc.)
+│   │   └── supporting/      # Reference tables (t001, t006, tvko, etc.)
+│   ├── clean/               # Normalized, deduplicated tables
+│   │   ├── main/            # Transactional tables (orders, delivery, billing, PO)
+│   │   └── supporting/      # Reference tables (plant, company_code, sales_org)
+│   └── processed/           # Master tables + BRD outputs (6 CSV files)
+├── docs/                    # Documentation and reports
+│   ├── html/                # HTML reports (view in browser or convert to PDF)
+│   │   ├── data-capstone-modeling-plan.html
+│   │   ├── data-capstone-pipeline-report.html
+│   │   ├── final_proposal.html
+│   │   └── Progress-Report-Feb-19.html
+│   └── md/                  # Markdown source (PROPOSAL.md, final_proposal.md)
+├── figures/                 # Generated visualizations (EDA, modeling)
+├── models/                  # Saved model artifacts (joblib, pickle, JSON metrics)
+├── notebooks/               # Jupyter notebooks
+│   ├── 01_eda_targets.ipynb # EDA and target exploration
+│   ├── 02_modeling.ipynb    # Classification and regression models
+│   └── 03_conclusion.ipynb  # Summary and report-ready outputs
+├── output/                  # Generated outputs
+│   ├── figures/             # Output figures
+│   ├── pdf/                 # PDF reports (from docs/html)
+│   └── tables/              # CSV outputs (forecasts, feature importance, etc.)
+├── reports/                 # Report tables
+│   └── tables/
+├── scripts/                 # Pipeline and modeling entry points
+│   ├── run_pipeline.py      # Build master tables + BRD metrics
+│   └── run_modeling.py      # Train classification and regression models
+├── src/                     # Reusable Python modules
+│   ├── data/                # ETL: build_master_tables, build_brd_metrics
+│   ├── features/            # Feature engineering, targets
+│   ├── models/              # Model training utilities
+│   └── utils/               # SAP rename config, helpers
+├── tests/                   # Unit tests
+├── assets/                  # Images and logos (e.g., WashU logo)
+├── artifacts/               # Build artifacts
+├── run_pipeline.py          # Root pipeline entry point
+├── html-to-pdf.sh           # Convert docs/html to output/pdf
+├── requirements.txt
+└── README.md
+```
 
-#### Core tables
-
-| File name | Description |
-|-----------|-------------|
-| vbak.csv | Sales Document Header. Contains headers for sales documents, such as sales order numbers and dates. |
-| vbap.csv | Sales Document Item. Details items within sales documents, including quantities and product details. |
-| vbep.csv | Sales Document Schedule. Provides schedule details for sales documents, including delivery dates. |
-| vbfa.csv | Sales Document Flow. Contains the flow of sales documents, tracking their status and changes. |
-| vbpa.csv | Sales Document Partners. Provides information on partners involved in sales documents. |
-| vbrk.csv | Billing Document Header. Contains headers for billing documents, including invoice numbers and dates. |
-| vbrp.csv | Billing Document Item. Details items within billing documents, including amounts and descriptions. |
-| vbuk.csv | Sales Document Status. Provides status information for sales documents, such as approval and processing status. |
-| vbup.csv | Sales Document Status (Update). Contains updated status information for sales documents. |
-| ekbe.csv | Purchase Order History. Details history of purchase orders, including quantities and values. |
-| eket.csv | Purchase Order Item History. Details changes and statuses for individual purchase order items. |
-| ekko.csv | Purchasing Document Header. Contains headers for purchasing documents, such as order numbers and dates. |
-| ekpo.csv | Purchasing Document Item. Contains details about items within purchasing documents, including item numbers and quantities. |
-| kna1.csv | Customer Master Data. Provides detailed information about customers, including names and addresses. |
-| konv.csv | Conditions. Contains pricing conditions and agreements related to sales and purchasing documents. |
-| lfa1.csv | Vendor Master Data. Provides detailed information about vendors, including contact and banking details. |
-| likp.csv | Delivery Header Data. Contains headers for delivery documents, such as delivery numbers and dates. |
-| lips.csv | Delivery Item Data. Details items within delivery documents, including quantities and goods movement information. |
-| makt.csv | Material Descriptions. Provides descriptions for materials, including names and text. |
-| mara.csv | Material Master Data. Contains basic data for materials, such as material numbers and categories. |
-| mard.csv | Material Stock Data. Details stock levels for materials in different storage locations. |
-
-#### Supporting tables (joins, units, organization)
-
-| File name | Description |
-|-----------|-------------|
-| t001.csv | Company Codes. Contains data about company codes used within the SAP system. |
-| t001w.csv | Company Code Currency. Provides currency information for company codes (and plants). |
-| t002.csv | Currencies. Contains details about currencies used in the SAP system. |
-| t006.csv | Units of Measure. Provides data on units of measure used in the SAP system. |
-| t006a.csv | Units of Measure (Additional). Contains additional information on units of measure. |
-| t006t.csv | Units of Measure Texts. Provides textual descriptions of units of measure. |
-| t009.csv | Currency Codes. Contains codes and descriptions for currencies. |
-| t009b.csv | Currency Codes (Additional). Provides additional information on currency codes. |
-| tvko.csv | Sales Organization. Provides data about sales organizations within the system. |
-| tvkot.csv | Sales Organization Texts. Contains textual descriptions of sales organizations. |
-| tvtw.csv | Sales Office. Details information about sales offices. |
-| tvtwt.csv | Sales Office Texts. Provides textual descriptions for sales offices. |
-
-*Join keys:* `mandt` (client), `vbeln` (sales doc), `matnr` (material), `bukrs` (company), `werks` (plant). See [SAP tables used in this project](#sap-tables-used-in-this-project) below for role of each table in the project.
-
----
-
-## Project structure
-
-| Folder | Purpose |
-|--------|---------|
-| `data/` | Raw data in `data/raw/main/` and `data/raw/supporting/`; clean in `data/clean/`; processed output in `data/processed/`. |
-| `notebooks/` | Jupyter notebooks: EDA, ETL/preprocessing, modeling, conclusion. |
-| `src/` | Reusable Python modules (data loaders, features, models, utils). |
-| `scripts/` | Pipeline and modeling entry points (`run_pipeline.py`, `run_modeling.py`). |
-| `models/` | Saved model artifacts (pickle, joblib). |
-| `docs/reports/` | Source reports: HTML and Markdown in `docs/reports/html/`, `docs/reports/md/`. |
-| `output/` | Generated outputs: PDFs in `output/pdf/`, tables in `output/tables/`, figures in `output/figures/`. |
-| `assets/` | Images and logos (e.g., `assets/png/`). |
-| `config/` | Configuration (paths, model hyperparameters). |
-| `tests/` | Unit tests. |
-
-**Pipeline:** Raw data → EDA → ETL/preprocessing → modeling → conclusion. Notebooks drive the workflow; `src` holds shared code.
+**Pipeline flow:** Raw data → Clean → Master tables → BRD metrics → Modeling → Conclusion.
 
 ---
 
-## Quick start
+## Documentation & Reports
+
+Detailed documentation is in `docs/html/`. Open in a browser or run `./html-to-pdf.sh --all` to generate PDFs in `output/pdf/`.
+
+| Document | Description |
+|----------|-------------|
+| [data-capstone-modeling-plan.html](docs/html/data-capstone-modeling-plan.html) | Model selection for backorder prediction (regression + classification); data flow; primary and Plan B models |
+| [data-capstone-pipeline-report.html](docs/html/data-capstone-pipeline-report.html) | Pipeline structure, master tables, join keys, ETL flow |
+| [Progress-Report-Feb-19.html](docs/html/Progress-Report-Feb-19.html) | Pipeline summary, output tables, modeling plan, next steps |
+| [final_proposal.html](docs/html/final_proposal.html) | Project proposal and scope |
+
+---
+
+## Pipeline Overview
+
+A two-phase ETL pipeline turns SAP ERP clean CSVs into master tables and BRD-aligned metrics (backorders, weeks of coverage).
+
+**Phase 1 – Core master tables** (`build_master_tables.py`):
+- Reads from `data/clean/main/`
+- Produces: `master_order_fulfillment`, `master_inventory_material`, `master_purchase`
+
+**Phase 2 – BRD metrics** (`build_brd_metrics.py`):
+- Reads core tables + delivery data
+- Produces: `master_order_fulfillment_brd`, `shipment_history`, `master_woc`
+
+### Pipeline output tables
+
+| Table | Rows | Description |
+|-------|------|-------------|
+| `master_order_fulfillment` | ~52k | Order-to-cash: SO + delivery + billing + material + customer |
+| `master_order_fulfillment_brd` | ~52k | Same + outstanding_qty, saleable_inventory, backorder_units/amount, aging |
+| `master_inventory_material` | ~66k | Inventory by material/plant: unrestricted_stock, blocked, etc. |
+| `master_purchase` | ~862k | Purchase orders: PO + vendor + material |
+| `shipment_history` | ~12k | Material × week shipments for AWD (rolling 24 weeks) |
+| `master_woc` | ~26k | Weeks of Coverage: SI, net_available, AWD, WOC, woc_low_flag |
+
+### Data flow: raw → prediction
+
+```
+SAP Raw Tables → Clean Main/Supporting → Processed Master Tables → Features + Targets → Models → Predicted Output
+```
+
+---
+
+## Modeling Plan
+
+### Classification: backorder risk (yes/no)
+
+| Approach | Rationale |
+|----------|-----------|
+| **Primary: XGBoost / LightGBM** | Strong on tabular data; handles ~10% backorder class imbalance; feature importance for reporting |
+| **Plan B: Logistic regression** | Interpretable baseline; coefficients show direction and relative importance |
+
+### Regression: magnitude of backorder
+
+| Approach | Rationale |
+|----------|-----------|
+| **Primary: Ridge / ElasticNet** | Linear, interpretable, robust to multicollinearity; layered feature groups |
+| **Plan B: XGBoost / LightGBM Regressor** | Captures non-linear effects; often best performance on tabular supply-chain data |
+
+**Workflow:** Start with Ridge/ElasticNet for regression and XGBoost/LightGBM for classification. Fall back to Plan B if needed.
+
+---
+
+## Quick Start
 
 1. **Environment:** `pip install -r requirements.txt`
 2. **Data:** Download the [SAP BigQuery dataset (Kaggle)](https://www.kaggle.com/datasets/mustafakeser4/sap-dataset-bigquery-dataset); place core tables in `data/raw/main/` and supporting tables in `data/raw/supporting/` (or use existing clean CSVs in `data/clean/`).
 3. **Pipeline:** Run `python run_pipeline.py` to build master tables, BRD metrics, and ML targets.
-4. **Modeling:** Run `notebooks/02_modeling.ipynb` or `python scripts/run_modeling.py` for classification and regression/forecasting.
+4. **Modeling:** Run `notebooks/02_modeling.ipynb` or `python scripts/run_modeling.py` for classification and regression.
 5. **Conclusion:** Run `notebooks/03_conclusion.ipynb` for summary and report-ready outputs.
-6. **PDFs:** Run `./html-to-pdf.sh --all` to regenerate all reports from `docs/reports/html/` to `output/pdf/`.
+6. **PDFs:** Run `./html-to-pdf.sh --all` to regenerate all reports from `docs/html/` to `output/pdf/`.
 
 ---
 
-## SAP tables used in this project
-
-The SAP BigQuery dataset (Kaggle) is used for **demand signals**, **inventory context**, and **order-to-delivery flow**. Only **core** and **supporting** tables relevant to backorder, demand, and inventory are used.
+## SAP Tables Used
 
 ### Core tables (demand, inventory, order-to-delivery)
 
-| Table | Description | Role in project |
-|-------|-------------|-----------------|
-| **vbak** | Sales Document Header. Order number, customer, order date, net value, sales org, currency. | Demand signals: order dates, customer, value. |
-| **vbap** | Sales Document Item. Line-level material, quantity, value per order. | Core demand and product mix by order. |
-| **vbep** | Sales Document Schedule Line. Requested/confirmed delivery dates and quantities. | Demand timing and fulfillment (requested vs confirmed). |
-| **mara** | Material Master Data. Material number, base unit, material type, product hierarchy. | Join key and attributes for materials. |
-| **mard** | Material Stock Data. Plant, storage location, unrestricted stock, etc. | **Inventory levels** by material/plant; critical for backorder/overstock. |
-| **makt** | Material Descriptions. Names and text for materials. | Reporting and feature enrichment. |
-| **likp** | Delivery Header. Delivery numbers and dates. | Order-to-delivery flow. |
-| **lips** | Delivery Item. Quantities delivered, goods movement. | Fulfillment vs order (shortfall by material). |
-| **vbrk** | Billing Document Header. Billing dates, invoice numbers. | Order-to-cash, fulfillment completion. |
-| **vbrp** | Billing Document Item. Billed quantities and amounts. | What was actually billed (fulfillment). |
-| **vbuk** | Sales Document Status. Overall order status (approval, processing). | Fulfillment and backorder status. |
-| **vbup** | Sales Document Item Status. Item-level status. | Item-level fulfillment/backorder signals. |
-| **vbfa** | Sales Document Flow. Links order → delivery → billing. | Document flow and tracking. |
-| **vbpa** | Sales Document Partners. Sold-to, ship-to. | Customer and location context. |
-| **ekko** | Purchasing Document Header. PO numbers, vendor, dates. | Replenishment context. |
-| **ekpo** | Purchasing Document Item. Material, quantity, dates per PO line. | Replenishment quantities and timing. |
-| **ekbe** | Purchase Order History. Quantities and values over time. | Replenishment history. |
-| **eket** | Purchase Order Item Schedule. Delivery dates for PO items. | Inbound timing. |
-| **kna1** | Customer Master. Customer attributes. | Demand segmentation and joins. |
-| **lfa1** | Vendor Master. Vendor attributes. | Supply and purchasing context. |
+| File name | Description |
+|-----------|-------------|
+| vbak.csv | Sales Document Header |
+| vbap.csv | Sales Document Item |
+| vbep.csv | Sales Document Schedule |
+| vbfa.csv | Sales Document Flow |
+| vbpa.csv | Sales Document Partners |
+| vbrk.csv | Billing Document Header |
+| vbrp.csv | Billing Document Item |
+| vbuk.csv | Sales Document Status |
+| vbup.csv | Sales Document Status (Update) |
+| ekbe.csv | Purchase Order History |
+| eket.csv | Purchase Order Item History |
+| ekko.csv | Purchasing Document Header |
+| ekpo.csv | Purchasing Document Item |
+| kna1.csv | Customer Master Data |
+| konv.csv | Conditions |
+| lfa1.csv | Vendor Master Data |
+| likp.csv | Delivery Header Data |
+| lips.csv | Delivery Item Data |
+| makt.csv | Material Descriptions |
+| mara.csv | Material Master Data |
+| mard.csv | Material Stock Data |
 
 ### Supporting tables (joins, units, organization)
 
-| Table | Description | Role in project |
-|-------|-------------|-----------------|
-| **t001** | Company Codes. Organizational company codes. | Organizational context for plants/company. |
-| **t001w** | Plants (Company Code / Currency). Plant to company and currency. | Link plants to company and currency. |
-| **t006**, **t006a**, **t006t** | Units of Measure (and texts). Base and additional UoM. | Correct interpretation of quantities. |
-| **t002**, **t009**, **t009b** | Currencies (and codes). Currency definitions. | Value and multi-currency context. |
-| **tvko**, **tvkot** | Sales Organization (and texts). Sales org definitions. | Demand segmentation by sales org. |
-| **tvtw**, **tvtwt** | Sales Office (and texts). Sales office definitions. | Finer segmentation if needed. |
-| **konv** | Conditions. Pricing conditions on documents. | Optional value-based demand or filters. |
+| File name | Description |
+|-----------|-------------|
+| t001.csv | Company Codes |
+| t001w.csv | Company Code Currency |
+| t002.csv | Currencies |
+| t006.csv, t006a.csv, t006t.csv | Units of Measure |
+| t009.csv, t009b.csv | Currency Codes |
+| tvko.csv, tvkot.csv | Sales Organization |
+| tvtw.csv, tvtwt.csv | Sales Office |
 
 *Join keys:* `mandt` (client), `vbeln` (sales doc), `matnr` (material), `bukrs` (company), `werks` (plant).
 
 ---
 
-## Preliminary Modeling Plan
+## Glossary
 
-*To be refined after EDA and baseline results. The pipeline will deliver both **classification** outputs (backorder/overstock risk) and **numeric** outputs (demand, shortfall, excess, or recommended quantities) for actionable resource and production decisions.*
-
-### Backorder and overstock risk (SAP-derived): classification
-
-| Approach | Rationale |
-|----------|-----------|
-| **Logistic regression** | Interpretable baseline; coefficients show direction and relative importance of inventory, lead time, order/delivery timing, etc. |
-| **Tree-based (Random Forest, XGBoost/LightGBM)** | Handle nonlinearity and interactions; often strong on tabular supply-chain data; feature importance for reporting. |
-| **Class imbalance** | Backorder/overstock events may be imbalanced. Plan to try: class weights, SMOTE or similar resampling, and threshold tuning; compare precision/recall and business-oriented metrics. |
-| **Evaluation** | Accuracy, precision, recall, F1, ROC-AUC; confusion matrix; cost-sensitive view if we attach rough costs to false positives vs missed backorders. |
-
-### Demand and inventory levels (SAP): regression & forecasting
-
-| Approach | Rationale |
-|----------|-----------|
-| **Regression with time features** | Linear or penalized regression with order/delivery history by material or customer; interpretable and fast; supports numeric forecasts for production and ordering. |
-| **Classical time series** | ARIMA or similar for demand series by material/plant; good baseline and seasonality check. |
-| **Goal** | Produce numeric demand forecasts and, where applicable, excess-inventory or recommended-order estimates so that results are actionable for production shifts, resource allocation, waste reduction, and revenue capture. |
-
-### Workflow
-
-1. **EDA:** Distributions, missing values, correlation, and document-flow analysis on SAP tables.  
-2. **Baselines:** Logistic regression (backorder/overstock); naive or regression-based demand forecast.  
-3. **Model selection:** Compare logistic vs tree-based (classification); compare forecasting approaches.  
-4. **Documentation:** Methods, assumptions, limitations, and how results would translate to company data once approved.
+| Term | Definition |
+|------|------------|
+| **AWD** | Average Weekly Demand, rolling 24-week average of units shipped |
+| **BRD** | Business Requirements Document |
+| **EDA** | Exploratory Data Analysis |
+| **ETL** | Extract, Transform, Load |
+| **PO** | Purchase Order |
+| **SAP** | Systems, Applications, and Products (ERP software) |
+| **SI** | Saleable Inventory, unrestricted stock available to fulfill orders |
+| **SO** | Sales Order |
+| **WOC** | Weeks of Coverage, net available inventory ÷ AWD |
