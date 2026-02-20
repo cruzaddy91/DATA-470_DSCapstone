@@ -1,0 +1,9 @@
+{
+  "demand_forecast": {
+    "materials_with_forecast": 648
+  },
+  "excess_inventory": {
+    "materials_with_excess": 188,
+    "total_excess_units": 21397447.666666668
+  }
+}

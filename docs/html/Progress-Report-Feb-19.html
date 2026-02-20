@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Progress Report Feb 19th - Data Capstone</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --brand-blue: #112467;
+      --text: #212121;
+      --muted: #666;
+      --bg: #f5f5f5;
+      --card: #ffffff;
+      --border: #ebebeb;
+      --info-bg: #f2f3f5;
+      --success: #1e7e34;
+      --warning: #b86b00;
+      --error: #dc3545;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--text);
+      background-color: var(--bg);
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto 40px auto;
+      background: var(--card);
+      padding: 40px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+
+    .header {
+      border-bottom: 3px solid var(--brand-blue);
+      padding-bottom: 20px;
+      margin-bottom: 22px;
+    }
+
+    .enablecv-brand {
+      display: flex;
+      align-items: center;
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .enablecv-logo { max-width: 250px; height: auto; }
+    .enablecv-logo img { max-width: 100%; height: auto; }
+
+    .header h1 {
+      color: var(--brand-blue);
+      font-size: 2.2em;
+      margin-bottom: 8px;
+      margin-top: 18px;
+    }
+
+    .header .subtitle {
+      color: var(--muted);
+      font-size: 1.05em;
+    }
+
+    .meta-info {
+      background: var(--info-bg);
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 22px;
+      border-left: 4px solid var(--brand-blue);
+    }
+
+    .meta-info p { margin: 5px 0; }
+    .meta-info strong { color: var(--brand-blue); }
+
+    .section { margin-bottom: 32px; }
+
+    .section h2 {
+      color: var(--brand-blue);
+      font-size: 1.45em;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .section h3 {
+      color: var(--brand-blue);
+      font-size: 1.1em;
+      margin-top: 20px;
+      margin-bottom: 12px;
+    }
+
+    .info-box {
+      background: #d1ecf1;
+      border: 1px solid #bee5eb;
+      border-left: 4px solid #17a2b8;
+      padding: 12px;
+      border-radius: 5px;
+      margin: 14px 0;
+    }
+
+    .info-box strong { color: #0c5460; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      background: #f2f3f5;
+      color: var(--brand-blue);
+      font-weight: 700;
+      font-size: 0.95em;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .highlight {
+      background: #fffbf0;
+      border-left: 4px solid var(--warning);
+      padding: 12px;
+      border-radius: 5px;
+      margin: 14px 0;
+    }
+
+    .highlight strong { color: var(--warning); }
+
+    .success-box {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      border-left: 4px solid var(--success);
+      padding: 12px;
+      border-radius: 5px;
+      margin: 14px 0;
+    }
+
+    .success-box strong { color: #155724; }
+
+    ul { margin-left: 18px; }
+    li { margin-bottom: 6px; color: var(--text); }
+
+    code {
+      background: var(--info-bg);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      color: var(--error);
+      font-size: 0.9em;
+    }
+
+    .view-flow {
+      background: var(--info-bg);
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+      border-left: 4px solid var(--brand-blue);
+    }
+
+    .view-flow h4 {
+      color: var(--brand-blue);
+      margin-bottom: 10px;
+      font-size: 1.1em;
+    }
+
+    .mermaid {
+      margin: 20px 0;
+      background: var(--info-bg);
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid var(--brand-blue);
+    }
+
+    .footer {
+      margin-top: 26px;
+      padding-top: 18px;
+      border-top: 2px solid #e0e0e0;
+      color: var(--muted);
+      font-size: 0.92em;
+    }
+
+    .footer a { color: var(--brand-blue); }
+
+    .glossary-table td { font-size: 0.9em; }
+    abbr[title] { cursor: help; text-decoration: none; border-bottom: 1px dotted var(--muted); }
+    a.glossary-link { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--muted); cursor: pointer; }
+    a.glossary-link:hover { color: var(--brand-blue); }
+
+    @media print {
+      @page {
+        size: letter;
+        margin: 1in;
+      }
+      html, body { margin: 0; padding: 0; background: #fff; height: auto !important; overflow: visible !important; }
+      body { font-size: 12pt; line-height: 1.35; }
+      .container { max-width: none !important; width: auto !important; margin: 0 0 20px 0 !important; padding: 0 !important; box-shadow: none !important; border-radius: 0 !important; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      p, li, td { orphans: 2; widows: 2; }
+      table { table-layout: fixed !important; width: 100% !important; }
+      th, td, code, a { overflow-wrap: anywhere !important; word-break: break-word !important; white-space: normal !important; }
+      h2, h3, h4 { page-break-after: avoid; }
+      .info-box, .success-box, .highlight, .view-flow { page-break-inside: avoid; break-inside: avoid; }
+      .mermaid, tr { page-break-inside: avoid; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="enablecv-brand">
+        <div class="enablecv-logo">
+          <img src="../../../assets/png/WU_Logo_Horz_Copper-2000x323-2602323276.png" alt="WashU" />
+        </div>
+      </div>
+      <h1>Progress Report Feb 19th</h1>
+      <p class="subtitle">Data Capstone - SAP Backorder Prediction | Pipeline Summary, Modeling Plan, Next Steps</p>
+    </div>
+
+    <div class="meta-info">
+      <p><strong>Purpose:</strong> Condensed progress report for professor review: clear pipeline summary, full modeling plan, sprint timeline, and closing reflections.</p>
+      <p><strong>Scope:</strong> ETL summary, modeling plan, next steps, ultimate goal</p>
+    </div>
+  </div>
+
+  <!-- Pipeline Summary (Short) -->
+  <div class="container" id="section-pipeline-summary">
+    <div class="section">
+      <h2>Pipeline Summary (ETL)</h2>
+      <p>Short, high-level overview of the data pipeline.</p>
+
+      <div class="info-box">
+        <strong>What I Built:</strong> A two-phase ETL pipeline that turns SAP ERP clean CSVs into master tables and BRD-aligned metrics (backorders, weeks of coverage). Aligned with EnableCV BRD logic.
+      </div>
+
+      <div class="view-flow">
+        <h4>Directory Structure</h4>
+        <ul>
+          <li><code>data/clean/main/</code>: Transactional tables (orders, delivery, billing, inventory, PO)</li>
+          <li><code>data/clean/supporting/</code>: Reference tables (plant, company_code, sales_org)</li>
+          <li><code>data/processed/</code>: Master tables + BRD outputs (6 CSV files)</li>
+          <li><code>src/data/</code>: build_master_tables.py, build_brd_metrics.py, run_pipeline.py</li>
+        </ul>
+      </div>
+
+      <h3>ETL Flow</h3>
+      <div class="mermaid">
+flowchart LR
+    A[data/clean] --> B[build_master_tables]
+    B --> C[(3 core tables)]
+    C --> D[build_brd_metrics]
+    D --> E[(3 BRD outputs)]
+      </div>
+
+      <p><strong>Step 1 - Core Master Tables:</strong> <code>build_master_tables.py</code> reads from <code>data/clean/main/</code> → produces: master_order_fulfillment, master_inventory_material, master_purchase.</p>
+      <p><strong>Step 2 - BRD Metrics:</strong> <code>build_brd_metrics.py</code> reads core tables + delivery data → produces: master_order_fulfillment_brd, shipment_history, master_woc.</p>
+
+      <h3>Output Tables</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Table</th>
+            <th>Rows</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>master_order_fulfillment</code></td>
+            <td>~52k</td>
+            <td>Order-to-cash: SO + delivery + billing + material + customer</td>
+          </tr>
+          <tr>
+            <td><code>master_order_fulfillment_brd</code></td>
+            <td>~52k</td>
+            <td>Same + outstanding_qty, saleable_inventory, backorder_units/amount, aging</td>
+          </tr>
+          <tr>
+            <td><code>master_inventory_material</code></td>
+            <td>~66k</td>
+            <td>Inventory by material/plant: unrestricted_stock, blocked, etc.</td>
+          </tr>
+          <tr>
+            <td><code>master_purchase</code></td>
+            <td>~862k</td>
+            <td>Purchase orders: PO + vendor + material</td>
+          </tr>
+          <tr>
+            <td><code>shipment_history</code></td>
+            <td>~12k</td>
+            <td>Material × week shipments for AWD (rolling 24 weeks)</td>
+          </tr>
+          <tr>
+            <td><code>master_woc</code></td>
+            <td>~26k</td>
+            <td>Weeks of Coverage: SI, net_available, AWD, WOC, woc_low_flag</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modeling Plan (Full) -->
+  <div class="container" id="section-modeling-plan">
+    <div class="section">
+      <h2>Modeling Plan</h2>
+      <p>SAP Backorder Prediction: Regression &amp; Classification Models</p>
+
+      <div class="meta-info">
+        <p><strong>Purpose:</strong> Model selection for backorder prediction, regression (magnitude) and classification (risk). Primary + Plan B for each.</p>
+        <p><strong>Scope:</strong> Predict backorder magnitude from historic sales trends and inventory; classify backorder risk.</p>
+        <p><strong>Status:</strong> Plan, to be refined after EDA and baseline results</p>
+      </div>
+
+      <h3>Data Flow: From Raw to Prediction</h3>
+      <h4>How data moves from the SAP repository through ETL to final predictions.</h4>
+      <div class="mermaid">
+flowchart LR
+    A[SAP Raw Tables] --> B[Clean Main]
+    A --> C[Clean Supporting]
+    B --> D[Processed Master Tables]
+    C --> D
+    D --> E[Features + Targets]
+    E --> F[Classification Model]
+    E --> G[Regression Model]
+    F --> H[Predicted Output]
+    G --> H
+      </div>
+      <div class="view-flow">
+        <h4>Stages</h4>
+        <ul>
+          <li><strong>SAP Raw:</strong> Sales, inventory, delivery, billing, material master, etc.</li>
+          <li><strong>Clean Main / Supporting:</strong> Normalized, deduplicated, joined by keys</li>
+          <li><strong>Processed Master:</strong> master_order_fulfillment_brd, master_inventory_material, master_woc</li>
+          <li><strong>Features + Targets:</strong> Sales trends, inventory, WOC, backorder flags</li>
+          <li><strong>Models:</strong> Classification (yes/no) and regression (magnitude)</li>
+        </ul>
+      </div>
+
+      <h3>Final Prediction Output</h3>
+      <p>Each row is a material/plant with predicted backorder risk and inventory context.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Material</th>
+            <th>Plant</th>
+            <th>Predicted Backorder</th>
+            <th>WOC</th>
+            <th>Saleable Inventory</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>000000000000002733</td>
+            <td>1000</td>
+            <td>Yes</td>
+            <td>2.1</td>
+            <td>45</td>
+          </tr>
+          <tr>
+            <td>000000000000002480</td>
+            <td>1000</td>
+            <td>No</td>
+            <td>8.3</td>
+            <td>120</td>
+          </tr>
+          <tr>
+            <td>000000000000001107</td>
+            <td>1000</td>
+            <td>Yes</td>
+            <td>0.5</td>
+            <td>12</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Regression: Magnitude of Backorder</h3>
+      <p>Predict numeric backorder (such as <code>backorder_units</code>, shortfall, demand) from historic sales trends and inventory.</p>
+
+      <h4>Primary: Ridge / ElasticNet Regression</h4>
+      <div class="info-box">
+        <strong>Rationale:</strong> Linear, interpretable, and robust to multicollinearity (common in sales + inventory features). Use layered feature groups (sales trends, inventory, lead time) for interpretability.
+      </div>
+      <ul>
+        <li><strong>Pros:</strong> Fast, stable, easy to explain to stakeholders</li>
+        <li><strong>Cons:</strong> Assumes mostly linear relationships</li>
+      </ul>
+
+      <h4>Plan B: Gradient Boosting Regressor (XGBoost / LightGBM)</h4>
+      <div class="info-box">
+        <strong>Rationale:</strong> Captures non-linear effects and interactions without manual feature engineering. Often best performance on tabular supply-chain data.
+      </div>
+      <ul>
+        <li><strong>Pros:</strong> Handles missing values and outliers; strong on complex relationships</li>
+        <li><strong>Cons:</strong> Less interpretable; needs tuning</li>
+      </ul>
+
+      <h3>Classification: Backorder Risk (Yes/No)</h3>
+      <p>Predict backorder risk, binary or risk level classification.</p>
+
+      <h4>Primary: XGBoost / LightGBM</h4>
+      <div class="info-box">
+        <strong>Rationale:</strong> Strong on tabular data; handles ~10% backorder class imbalance well. Built-in feature importance and interaction capture.
+      </div>
+      <ul>
+        <li><strong>Pros:</strong> Often best performance; handles imbalance; feature importance for reporting</li>
+        <li><strong>Cons:</strong> Less interpretable than logistic regression</li>
+      </ul>
+
+      <h4>Plan B: Logistic Regression</h4>
+      <div class="info-box">
+        <strong>Rationale:</strong> Interpretable baseline; coefficients show direction and relative importance of inventory, lead time, order/delivery timing.
+      </div>
+      <ul>
+        <li><strong>Pros:</strong> Simple, fast, easy to explain</li>
+        <li><strong>Cons:</strong> Assumes linear decision boundary; weaker if relationships are non-linear</li>
+      </ul>
+
+      <h3>Model Selection Summary</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Task</th>
+            <th>Primary</th>
+            <th>Plan B</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Regression</strong> (magnitude)</td>
+            <td>Ridge / ElasticNet</td>
+            <td>XGBoost / LightGBM Regressor</td>
+          </tr>
+          <tr>
+            <td><strong>Classification</strong> (risk)</td>
+            <td>XGBoost / LightGBM</td>
+            <td>Logistic Regression</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="highlight">
+        <strong>Workflow:</strong> Start with Ridge/ElasticNet for regression and XGBoost/LightGBM for classification. If Ridge underperforms, switch to gradient boosting for regression. If XGBoost is hard to explain or overfits, fall back to logistic regression for classification.
+      </div>
+
+      <h3>Glossary</h3>
+      <table class="glossary-table">
+        <thead>
+          <tr>
+            <th>Term</th>
+            <th>Definition</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>AWD</strong></td><td>Average Weekly Demand, rolling 24-week average of units shipped</td></tr>
+          <tr><td><strong>BRD</strong></td><td>Business Requirements Document</td></tr>
+          <tr><td><strong>ETL</strong></td><td>Extract, Transform, Load</td></tr>
+          <tr><td><strong>SAP</strong></td><td>Systems, Applications, and Products (ERP software)</td></tr>
+          <tr><td><strong>SI</strong></td><td>Saleable Inventory, unrestricted stock available to fulfill orders</td></tr>
+          <tr><td><strong>SO</strong></td><td>Sales Order</td></tr>
+          <tr><td><strong>WOC</strong></td><td>Weeks of Coverage, net available inventory ÷ AWD</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Next Steps: Sprint Schedule -->
+  <div class="container" id="section-next-steps">
+    <div class="section">
+      <h2>Next Steps: Sprint Schedule</h2>
+      <p>Sprint timeline from Jan 20 through May 1. Target completion: May 1.</p>
+
+      <h3>Sprint Milestones</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Sprint</th>
+            <th>Dates</th>
+            <th>Focus</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Sprint 1</strong></td>
+            <td>Jan 20 – Feb 2</td>
+            <td>Data &amp; targets: ETL pipeline, master tables, target definition (backorder/overstock)</td>
+          </tr>
+          <tr>
+            <td><strong>Sprint 2</strong></td>
+            <td>Feb 3 – Feb 16</td>
+            <td>EDA: Exploratory analysis, data quality checks, visualizations, document-flow analysis</td>
+          </tr>
+          <tr>
+            <td><strong>Sprint 3</strong></td>
+            <td>Feb 17 – Mar 2</td>
+            <td>Baselines &amp; classification: Logistic regression, tree-based models (XGBoost/LightGBM), class imbalance tuning</td>
+          </tr>
+          <tr>
+            <td><strong>Sprint 4</strong></td>
+            <td>Mar 3 – Mar 16</td>
+            <td>Regression &amp; forecasting: Demand forecasts, inventory estimates, Ridge/ElasticNet, gradient boosting</td>
+          </tr>
+          <tr>
+            <td><strong>Sprint 5</strong></td>
+            <td>Mar 17 – Mar 30</td>
+            <td>Integration: Pipeline wiring, model evaluation, refinement, Plan B fallbacks if needed</td>
+          </tr>
+          <tr>
+            <td><strong>Sprint 6</strong></td>
+            <td>Mar 31 – Apr 13</td>
+            <td>Documentation: Report draft, methods, limitations, reproducibility</td>
+          </tr>
+          <tr>
+            <td><strong>Sprint 7</strong></td>
+            <td>Apr 14 – May 1</td>
+            <td>Final deliverables: Report polish, presentation, code freeze</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="success-box">
+        <strong>Target completion:</strong> May 1: All development complete; final report, presentation, and deliverables ready.
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary: Ultimate Goal, Complexities, Confidence, Excitement -->
+  <div class="container" id="section-summary">
+    <div class="section">
+      <h2>Summary</h2>
+
+      <h3>Ultimate Goal</h3>
+      <p>Build an end-to-end predictive pipeline that turns SAP ERP data into actionable predictions for backorder risk, overstock risk, and demand/inventory levels. The goal is to reduce revenue loss from backorders, cut waste from overstock, and deliver actionable metrics (demand forecasts, shortfall/excess estimates, recommended order quantities) for replenishment and allocation decisions.</p>
+
+      <h3>Handling Complexities</h3>
+      <p>The pipeline is inherently complex: SAP data spans multiple tables, document flows (order → delivery → billing), and organizational units. I handle this by:</p>
+      <ul>
+        <li><strong>Two-phase ETL:</strong> Core master tables first, then BRD metrics: clear separation of concerns.</li>
+        <li><strong>Normalized join keys:</strong> Canonical document/item keys so different document formats (such as <code>4500000051</code> vs <code>51</code>) match.</li>
+        <li><strong>Primary vs Plan B models:</strong> Ridge/ElasticNet for interpretability; XGBoost/LightGBM for performance, with fallbacks if needed.</li>
+        <li><strong>Documentation:</strong> Pipeline report, modeling plan, and this progress report to keep the logic clear and reproducible.</li>
+      </ul>
+
+      <h3>Confidence</h3>
+      <p>I am confident with this type of pipelining. I have experience building ETL pipelines from enterprise data, joining transactional and master tables, and deriving business metrics from document flows. The SAP BigQuery dataset is representative of real ERP data, and the pipeline structure (clean → processed → features → models) is well-tested and reproducible.</p>
+
+      <h3>Excitement</h3>
+      <p>I am excited about the introduction of a more advanced modeling structure. The dual classification (risk) + regression (magnitude) approach, with primary and Plan B options for each, gives flexibility to balance interpretability and performance. Moving from baselines to advanced models (XGBoost, LightGBM) and refining the feature set based on EDA will allow the pipeline to deliver real value for production and replenishment decisions.</p>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="footer">
+      <p>Progress Report Feb 19th | Data Capstone - SAP Backorder Prediction</p>
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+  </script>
+</body>
+</html>

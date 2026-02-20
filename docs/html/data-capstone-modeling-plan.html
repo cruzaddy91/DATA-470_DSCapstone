@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Capstone Modeling Plan, Backorder Prediction</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --brand-blue: #112467;
+      --text: #212121;
+      --muted: #666;
+      --bg: #f5f5f5;
+      --card: #ffffff;
+      --border: #ebebeb;
+      --info-bg: #f2f3f5;
+      --success: #1e7e34;
+      --warning: #b86b00;
+      --error: #dc3545;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--text);
+      background-color: var(--bg);
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto 40px auto;
+      background: var(--card);
+      padding: 40px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+
+    .header {
+      border-bottom: 3px solid var(--brand-blue);
+      padding-bottom: 20px;
+      margin-bottom: 22px;
+    }
+
+    .enablecv-brand {
+      display: flex;
+      align-items: center;
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .enablecv-logo { max-width: 250px; height: auto; }
+    .enablecv-logo img { max-width: 100%; height: auto; }
+
+    .header h1 {
+      color: var(--brand-blue);
+      font-size: 2.2em;
+      margin-bottom: 8px;
+      margin-top: 18px;
+    }
+
+    .header .subtitle {
+      color: var(--muted);
+      font-size: 1.05em;
+    }
+
+    .meta-info {
+      background: var(--info-bg);
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 22px;
+      border-left: 4px solid var(--brand-blue);
+    }
+
+    .meta-info p { margin: 5px 0; }
+    .meta-info strong { color: var(--brand-blue); }
+
+    .section { margin-bottom: 32px; }
+
+    .section h2 {
+      color: var(--brand-blue);
+      font-size: 1.45em;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .section h3 {
+      color: var(--brand-blue);
+      font-size: 1.1em;
+      margin-top: 20px;
+      margin-bottom: 12px;
+    }
+
+    .info-box {
+      background: #d1ecf1;
+      border: 1px solid #bee5eb;
+      border-left: 4px solid #17a2b8;
+      padding: 12px;
+      border-radius: 5px;
+      margin: 14px 0;
+    }
+
+    .info-box strong { color: #0c5460; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      background: #f2f3f5;
+      color: var(--brand-blue);
+      font-weight: 700;
+      font-size: 0.95em;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .highlight {
+      background: #fffbf0;
+      border-left: 4px solid var(--warning);
+      padding: 12px;
+      border-radius: 5px;
+      margin: 14px 0;
+    }
+
+    .highlight strong { color: var(--warning); }
+
+    .success-box {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      border-left: 4px solid var(--success);
+      padding: 12px;
+      border-radius: 5px;
+      margin: 14px 0;
+    }
+
+    .success-box strong { color: #155724; }
+
+    ul { margin-left: 18px; }
+    li { margin-bottom: 6px; color: var(--text); }
+
+    code {
+      background: var(--info-bg);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      color: var(--error);
+      font-size: 0.9em;
+    }
+
+    .view-flow {
+      background: var(--info-bg);
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+      border-left: 4px solid var(--brand-blue);
+    }
+
+    .view-flow h4 {
+      color: var(--brand-blue);
+      margin-bottom: 10px;
+      font-size: 1.1em;
+    }
+
+    .view-flow ol {
+      margin-left: 20px;
+    }
+
+    .view-flow li {
+      margin-bottom: 8px;
+    }
+
+    .mermaid {
+      margin: 20px 0;
+      background: var(--info-bg);
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid var(--brand-blue);
+    }
+
+    .footer {
+      margin-top: 26px;
+      padding-top: 18px;
+      border-top: 2px solid #e0e0e0;
+      color: var(--muted);
+      font-size: 0.92em;
+    }
+
+    .footer a { color: var(--brand-blue); }
+
+    .glossary-table td { font-size: 0.9em; }
+    abbr[title] { cursor: help; text-decoration: none; border-bottom: 1px dotted var(--muted); }
+    a.glossary-link { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--muted); cursor: pointer; }
+    a.glossary-link:hover { color: var(--brand-blue); }
+
+    @media print {
+      @page {
+        size: letter;
+        margin: 1in;
+      }
+
+      /* Safari: do NOT hard-set html/body width/height in inches */
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #fff;
+        height: auto !important;
+        overflow: visible !important;
+      }
+
+      body {
+        font-size: 12pt;
+        line-height: 1.35;
+      }
+
+      .container {
+        max-width: none !important;
+        width: auto !important;
+        margin: 0 0 20px 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        height: auto !important;
+        overflow: visible !important;
+      }
+
+      * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      /* Orphans/widows: Word-like (min 2 lines before/after break) */
+      p, li, td {
+        orphans: 2;
+        widows: 2;
+      }
+
+      /* THE IMPORTANT PART: prevent Safari from shrinking everything */
+      table {
+        table-layout: fixed !important;
+        width: 100% !important;
+      }
+
+      th, td {
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+        white-space: normal !important;
+      }
+
+      code, a {
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+        white-space: normal !important;
+      }
+
+      img {
+        max-width: 100% !important;
+        height: auto !important;
+      }
+
+      /* Keep headings with their content (no orphaned headings at page bottom) */
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+
+      /* Don't split callout boxes, diagrams, or table rows */
+      .info-box, .success-box, .highlight, .view-flow {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+
+      .mermaid {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+
+      tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="enablecv-brand">
+        <div class="enablecv-logo">
+          <img src="../../../assets/png/WU_Logo_Horz_Copper-2000x323-2602323276.png" alt="WashU" />
+        </div>
+      </div>
+      <h1>Data Capstone Modeling Plan</h1>
+      <p class="subtitle"><a href="#glossary-sap" class="glossary-link"><abbr title="Systems, Applications, and Products">SAP</abbr></a> Backorder Prediction, Regression & Classification Models</p>
+    </div>
+
+    <div class="meta-info">
+      <p><strong>Purpose:</strong> Model selection for backorder prediction, regression (magnitude) and classification (risk). Primary + Plan B for each.</p>
+      <p><strong>Scope:</strong> Predict backorder magnitude from historic sales trends and inventory; classify backorder risk.</p>
+      <p><strong>Status:</strong> Plan, to be refined after EDA and baseline results</p>
+    </div>
+
+  </div>
+
+  <!-- Data Flow -->
+  <div class="container" id="section-flow">
+    <div class="section">
+      <h2>Data Flow: From Raw to Prediction</h2>
+      <p>How data moves from the SAP repository through ETL to final predictions.</p>
+      <div class="mermaid">
+flowchart LR
+    A[SAP Raw Tables] --> B[Clean Main]
+    A --> C[Clean Supporting]
+    B --> D[Processed Master Tables]
+    C --> D
+    D --> E[Features + Targets]
+    E --> F[Classification Model]
+    E --> G[Regression Model]
+    F --> H[Predicted Output]
+    G --> H
+      </div>
+      <div class="view-flow">
+        <h4>Stages</h4>
+        <ul>
+          <li><strong>SAP Raw:</strong> Sales, inventory, delivery, billing, material master, etc.</li>
+          <li><strong>Clean Main / Supporting:</strong> Normalized, deduplicated, joined by keys</li>
+          <li><strong>Processed Master:</strong> master_order_fulfillment_brd, master_inventory_material, master_woc</li>
+          <li><strong>Features + Targets:</strong> Sales trends, inventory, WOC, backorder flags</li>
+          <li><strong>Models:</strong> Classification (yes/no) and regression (magnitude)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prediction Output -->
+  <div class="container" id="section-output">
+    <div class="section">
+      <h2>Final Prediction Output</h2>
+      <p>Each row is a material/plant with predicted backorder risk and inventory context.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Material</th>
+            <th>Plant</th>
+            <th>Predicted Backorder</th>
+            <th>WOC</th>
+            <th>Saleable Inventory</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>000000000000002733</td>
+            <td>1000</td>
+            <td>Yes</td>
+            <td>2.1</td>
+            <td>45</td>
+          </tr>
+          <tr>
+            <td>000000000000002480</td>
+            <td>1000</td>
+            <td>No</td>
+            <td>8.3</td>
+            <td>120</td>
+          </tr>
+          <tr>
+            <td>000000000000001107</td>
+            <td>1000</td>
+            <td>Yes</td>
+            <td>0.5</td>
+            <td>12</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Regression Models -->
+  <div class="container" id="section-regression">
+    <div class="section">
+      <h2>Regression: Magnitude of Backorder</h2>
+      <p>Predict numeric backorder (such as <code>backorder_units</code>, shortfall, demand) from historic sales trends and inventory.</p>
+
+      <h3>Primary: Ridge / ElasticNet Regression</h3>
+      <div class="info-box">
+        <strong>Rationale:</strong> Linear, interpretable, and robust to multicollinearity (common in sales + inventory features). Use layered feature groups (sales trends, inventory, lead time) for interpretability.
+      </div>
+      <ul>
+        <li><strong>Pros:</strong> Fast, stable, easy to explain to stakeholders</li>
+        <li><strong>Cons:</strong> Assumes mostly linear relationships</li>
+      </ul>
+
+      <h3>Plan B: Gradient Boosting Regressor (XGBoost / LightGBM)</h3>
+      <div class="info-box">
+        <strong>Rationale:</strong> Captures non-linear effects and interactions without manual feature engineering. Often best performance on tabular supply-chain data.
+      </div>
+      <ul>
+        <li><strong>Pros:</strong> Handles missing values and outliers; strong on complex relationships</li>
+        <li><strong>Cons:</strong> Less interpretable; needs tuning</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Classification Models -->
+  <div class="container" id="section-classification">
+    <div class="section">
+      <h2>Classification: Backorder Risk (Yes/No)</h2>
+      <p>Predict backorder risk, binary or risk level classification.</p>
+
+      <h3>Primary: XGBoost / LightGBM</h3>
+      <div class="info-box">
+        <strong>Rationale:</strong> Strong on tabular data; handles ~10% backorder class imbalance well. Built-in feature importance and interaction capture.
+      </div>
+      <ul>
+        <li><strong>Pros:</strong> Often best performance; handles imbalance; feature importance for reporting</li>
+        <li><strong>Cons:</strong> Less interpretable than logistic regression</li>
+      </ul>
+
+      <h3>Plan B: Logistic Regression</h3>
+      <div class="info-box">
+        <strong>Rationale:</strong> Interpretable baseline; coefficients show direction and relative importance of inventory, lead time, order/delivery timing.
+      </div>
+      <ul>
+        <li><strong>Pros:</strong> Simple, fast, easy to explain</li>
+        <li><strong>Cons:</strong> Assumes linear decision boundary; weaker if relationships are non-linear</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Summary Table -->
+  <div class="container" id="section-summary">
+    <div class="section">
+      <h2>Model Selection Summary</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Task</th>
+            <th>Primary</th>
+            <th>Plan B</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Regression</strong> (magnitude)</td>
+            <td>Ridge / ElasticNet</td>
+            <td>XGBoost / LightGBM Regressor</td>
+          </tr>
+          <tr>
+            <td><strong>Classification</strong> (risk)</td>
+            <td>XGBoost / LightGBM</td>
+            <td>Logistic Regression</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="highlight">
+        <strong>Workflow:</strong> Start with Ridge/ElasticNet for regression and XGBoost/LightGBM for classification. If Ridge underperforms, switch to gradient boosting for regression. If XGBoost is hard to explain or overfits, fall back to logistic regression for classification.
+      </div>
+    </div>
+  </div>
+
+  <!-- Glossary -->
+  <div class="container" id="section-glossary">
+    <div class="section">
+      <h2>Glossary</h2>
+      <table class="glossary-table">
+        <thead>
+          <tr>
+            <th>Term</th>
+            <th>Definition</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr id="glossary-awd"><td><strong>AWD</strong></td><td>Average Weekly Demand, rolling 24-week average of units shipped</td></tr>
+          <tr id="glossary-brd"><td><strong>BRD</strong></td><td>Business Requirements Document</td></tr>
+          <tr id="glossary-csv"><td><strong>CSV</strong></td><td>Comma-Separated Values, flat file format</td></tr>
+          <tr id="glossary-eda"><td><strong>EDA</strong></td><td>Exploratory Data Analysis</td></tr>
+          <tr id="glossary-erp"><td><strong>ERP</strong></td><td>Enterprise Resource Planning</td></tr>
+          <tr id="glossary-etl"><td><strong>ETL</strong></td><td>Extract, Transform, Load</td></tr>
+          <tr id="glossary-po"><td><strong>PO</strong></td><td>Purchase Order</td></tr>
+          <tr id="glossary-sap"><td><strong>SAP</strong></td><td>Systems, Applications, and Products (ERP software)</td></tr>
+          <tr id="glossary-si"><td><strong>SI</strong></td><td>Saleable Inventory, unrestricted stock available to fulfill orders</td></tr>
+          <tr id="glossary-so"><td><strong>SO</strong></td><td>Sales Order</td></tr>
+          <tr id="glossary-agg"><td><strong>agg</strong></td><td>Aggregated, summed/grouped by key columns</td></tr>
+          <tr id="glossary-sales-org"><td><strong>sales_org</strong></td><td>Sales Organization, SAP organizational unit</td></tr>
+          <tr id="glossary-woc"><td><strong>WOC</strong></td><td>Weeks of Coverage, net available inventory ÷ AWD</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="footer">
+      <p>Data Capstone Modeling Plan | <a href="#glossary-sap" class="glossary-link"><abbr title="Systems, Applications, and Products">SAP</abbr></a> Backorder Prediction</p>
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+  </script>
+</body>
+</html>

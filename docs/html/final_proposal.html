@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Data Science Capstone: Final Proposal</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      @page {
+        size: letter;
+        margin: 1in;
+      }
+      html {
+        background-color: white;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+        margin: 0;
+        padding: 0;
+        max-width: none;
+      }
+      p, li, td {
+        orphans: 2;
+        widows: 2;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+      table {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+  <div style="margin-bottom: 1em; padding-bottom: 0.5em; border-bottom: 2px solid #e0e0e0;">
+    <img src="../../../assets/png/WU_Logo_Horz_Copper-2000x323-2602323276.png" alt="WashU" style="max-width: 250px; height: auto;" />
+  </div>
+<h1 class="title">Data Science Capstone: Final Proposal</h1>
+</header>
+<h1 id="data-science-capstone-final-proposal">Data Science Capstone:
+Final Proposal</h1>
+<p><strong>Predicting Backorder and Overstock Risk, Plus Demand and
+Inventory Levels</strong></p>
+<p><strong>Addy Cruz</strong><br />
+Data Science Capstone</p>
+<hr />
+<h2 id="abstract">Abstract</h2>
+<p>This proposal addresses supply chain inefficiencies (unfulfilled
+orders due to backorders and excess inventory) using the SAP BigQuery
+dataset. The project will build a predictive pipeline that (1)
+classifies products at risk of backorder or overstock and (2) produces
+numeric outputs (demand forecasts, expected shortfall, excess units,
+recommended order quantities) to support production, labor, and resource
+decisions. Methodologies include exploratory data analysis on SAP sales,
+materials, and inventory tables; classification models (such as logistic
+regression, tree-based methods) for risk; and regression/forecasting for
+demand and inventory levels. The goal is to reduce revenue loss from
+backorders, cut waste from overstock, and deliver actionable metrics for
+replenishment and allocation.</p>
+<hr />
+<h2 id="introduction">Introduction</h2>
+<p>The project will deliver an end-to-end data science pipeline that
+turns enterprise SAP data into actionable predictions for backorder
+risk, overstock risk, and demand and inventory levels. Goals and
+objectives are: (1) to identify which products or materials are at risk
+of backorder or overstock using derived signals from order, delivery,
+and stock data; (2) to produce numeric estimates (demand forecasts,
+shortfall, excess, or recommended order quantities) so that stakeholders
+can reallocate production and resources; and (3) to document data
+provenance, modeling choices, and limitations so that the approach can
+be reproduced or adapted to company-approved data. The work is scoped to
+the SAP BigQuery dataset (Kaggle) as the sole data source, with outputs
+suitable for reports, dashboards, or downstream decision support.</p>
+<hr />
+<h2 id="background">Background</h2>
+<h3 id="background-and-rationale-for-the-project">Background and
+rationale for the project</h3>
+<p><strong>Why this issue needs to be investigated.</strong> Many
+organizations face simultaneous backorder risk (lost revenue,
+unfulfilled orders) and overstock (excess inventory, waste). Data-driven
+classification of at-risk products and numeric forecasts for demand and
+inventory can improve replenishment, safety stock, and production
+allocation.</p>
+<p><strong>What we will learn and gain.</strong> We will learn how to
+design a reproducible pipeline on real SAP-style data: building targets
+from document flow (order vs delivery vs billing), joining sales and
+inventory tables, and combining classification with
+regression/forecasting. We will gain a working pipeline and evidence of
+which factors drive backorder and overstock and how well predictions
+support decisions.</p>
+<p><strong>Why it is important.</strong> Better prediction of backorder
+and overstock, plus demand and inventory levels, supports concrete
+actions (shifting production, reallocating labor, reducing waste, and
+capturing revenue) which matter for operations and sustainability.</p>
+<p><strong>Existing software and related work.</strong> Supply chain
+analytics and demand-forecasting tools (such as ERP modules, dedicated
+planning software) often rely on similar inputs: sales orders, delivery
+and billing documents, and stock levels. This project uses a single,
+well-defined dataset (SAP BigQuery on Kaggle) to demonstrate a full
+pipeline from raw tables to classification and forecasting outputs, with
+clear documentation for reproducibility.</p>
+<h3 id="methodological-background">Methodological background</h3>
+<p><strong>How the project will be developed.</strong> The project will
+be developed as a reproducible pipeline: data ingestion and cleaning,
+feature and target construction from SAP tables, exploratory data
+analysis (EDA), baseline and advanced models for classification and
+regression/forecasting, evaluation, and documentation. The pipeline will
+be implemented in Python (such as pandas, scikit-learn) with
+version-controlled code and clear separation of data, features, models,
+and reports.</p>
+<p><strong>Technologies and why they are the best choice.</strong>
+<em>Data:</em> SAP BigQuery dataset (Kaggle) provides sales documents
+(<code>vbak</code>, <code>vbap</code>, <code>vbep</code>), material
+master and stock (<code>mara</code>, <code>mard</code>), deliveries
+(<code>likp</code>, <code>lips</code>), billing (<code>vbrk</code>,
+<code>vbrp</code>), and purchasing (<code>ekko</code>,
+<code>ekpo</code>, <code>ekbe</code>, <code>eket</code>), which are
+sufficient for demand signals, inventory context, and order-to-delivery
+flow. <em>Modeling:</em> Classification—primary: XGBoost/LightGBM; Plan B:
+logistic regression. Regression (magnitude)—primary: Ridge/ElasticNet;
+Plan B: XGBoost/LightGBM. <em>Tooling:</em> Python, Jupyter for EDA and
+reporting, and a scripted pipeline (<code>run_pipeline.py</code>) for
+reproducibility. This stack is standard in data science and aligns with
+capstone scope and timeline.</p>
+<hr />
+<h2 id="proposed-work">Proposed Work</h2>
+<h3 id="specific-tasks">Specific tasks</h3>
+<ol type="1">
+<li><strong>Data and targets:</strong> Ingest and clean SAP BigQuery
+CSVs; define join keys (<code>mandt</code>, <code>vbeln</code>,
+<code>matnr</code>, <code>werks</code>, etc.); derive
+backorder/overstock targets or risk signals from order vs delivery
+timing, shortfall by material, and stock levels.</li>
+<li><strong>Feature engineering:</strong> Build features from sales
+orders, schedule lines, inventory, deliveries, and purchasing (such as
+lead time, order/delivery history, stock levels, material and customer
+attributes).</li>
+<li><strong>EDA and baselines:</strong> Perform EDA (distributions,
+missing values, correlation, document-flow analysis); train logistic
+regression and naive or regression-based demand baselines; document
+findings.</li>
+<li><strong>Classification models:</strong> Train and evaluate
+classifiers for backorder/overstock risk; handle class imbalance (such as
+weights, resampling, threshold tuning); report precision, recall, F1,
+ROC-AUC, and confusion matrix.</li>
+<li><strong>Regression and forecasting:</strong> Build demand forecasts
+and, where applicable, excess-inventory or recommended-order estimates;
+compare regression and time-series approaches; ensure outputs are
+actionable.</li>
+<li><strong>Pipeline and documentation:</strong> Implement a
+reproducible pipeline (scripts, configs); document methods, assumptions,
+and limitations; produce reports suitable for PDF or presentation.</li>
+</ol>
+<h3 id="rationale">Rationale</h3>
+<p>Tasks are ordered so that data and targets are fixed first, then
+features and EDA inform modeling. Classification and
+regression/forecasting are separated because they address different
+outputs (risk vs numeric levels) but share the same data and feature
+base. Baselines before advanced models provide a clear performance
+comparison. A single pipeline script and documentation ensure the work
+can be reproduced and extended.</p>
+<h3 id="plan-of-work">Plan of work</h3>
+<ul>
+<li><strong>Data and targets:</strong> Load SAP tables; define and
+implement backorder/overstock targets (such as from <code>vbup</code>,
+delivery shortfall, stock thresholds); create master analysis
+tables.</li>
+<li><strong>Features and EDA:</strong> Build feature set from orders,
+deliveries, inventory, and purchasing; run EDA notebooks; summarize data
+quality and document flow.</li>
+<li><strong>Classification:</strong> Implement logistic regression and
+tree-based models; tune for class imbalance; evaluate with standard and
+business-oriented metrics.</li>
+<li><strong>Regression/forecasting:</strong> Implement demand and
+inventory-level models; produce numeric outputs; compare methods and
+document choices.</li>
+<li><strong>Integration and docs:</strong> Wire pipeline end-to-end;
+write methods and limitations; generate final report (MD/HTML/PDF).</li>
+</ul>
+<h3 id="deployment-strategy">Deployment strategy</h3>
+<p>The completed project will be made available as a
+<strong>reproducible pipeline and report</strong>, not a live deployed
+service. <strong>Where and how:</strong> Code and data references live
+in the capstone repository; the pipeline can be run locally or in a
+standard Python environment (such as conda/venv). Outputs include tables,
+figures, and a written report (MD/HTML) that can be converted to PDF.
+<strong>Intended users:</strong> Instructors, evaluators, and (if
+shared) stakeholders who want to reproduce or adapt the analysis.
+<strong>Considerations:</strong> No deployment to cloud or external
+users is required; the focus is on reproducibility, clarity, and correct
+use of the SAP dataset. If the project were extended, the same pipeline
+could be run on company-approved SAP exports with minimal changes to
+code.</p>
+<h3 id="timeline">Timeline</h3>
+<table>
+<colgroup>
+<col style="width: 18%" />
+<col style="width: 22%" />
+<col style="width: 60%" />
+</colgroup>
+<thead>
+<tr>
+<th>Sprint</th>
+<th>Dates</th>
+<th>Focus</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sprint 1</td>
+<td>Jan 20 – Feb 2</td>
+<td>Data &amp; targets: ETL pipeline, master tables, target definition
+(backorder/overstock)</td>
+</tr>
+<tr>
+<td>Sprint 2</td>
+<td>Feb 3 – Feb 16</td>
+<td>EDA: Exploratory analysis, data quality checks, visualizations,
+document-flow analysis</td>
+</tr>
+<tr>
+<td>Sprint 3</td>
+<td>Feb 17 – Mar 2</td>
+<td>Baselines &amp; classification: Logistic regression, tree-based models
+(XGBoost/LightGBM), class imbalance tuning</td>
+</tr>
+<tr>
+<td>Sprint 4</td>
+<td>Mar 3 – Mar 16</td>
+<td>Regression &amp; forecasting: Demand forecasts, inventory estimates,
+Ridge/ElasticNet, gradient boosting</td>
+</tr>
+<tr>
+<td>Sprint 5</td>
+<td>Mar 17 – Mar 30</td>
+<td>Integration: Pipeline wiring, model evaluation, refinement, Plan B
+fallbacks if needed</td>
+</tr>
+<tr>
+<td>Sprint 6</td>
+<td>Mar 31 – Apr 13</td>
+<td>Documentation: Report draft, methods, limitations,
+reproducibility</td>
+</tr>
+<tr>
+<td>Sprint 7</td>
+<td>Apr 14 – May 1</td>
+<td>Final deliverables: Report polish, presentation, code freeze</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Target completion:</strong> May 1. All development complete;
+final report, presentation, and deliverables ready.</p>
+<p>Work is planned in phases: (1) data and targets + EDA; (2) baselines
+and classification; (3) regression/forecasting and integration; (4)
+documentation and report. The sprint timeline allows for iterative
+refinement based on EDA and baseline results.</p>
+<h3 id="preliminary-work-optional">Preliminary work (optional)</h3>
+<p>The repository already contains SAP-derived data in
+<code>data/</code> (raw, clean, processed), a two-phase ETL pipeline in
+<code>src/data/</code> (<code>build_master_tables.py</code>,
+<code>build_brd_metrics.py</code>, <code>run_pipeline.py</code>), target
+construction in <code>src/features/build_targets.py</code>, and notebooks
+for EDA and modeling (<code>01_eda_targets.ipynb</code>,
+<code>02_modeling.ipynb</code>, <code>03_conclusion.ipynb</code>). The
+pipeline produces six master tables:
+<code>master_order_fulfillment</code>, <code>master_order_fulfillment_brd</code>,
+<code>master_inventory_material</code>, <code>master_purchase</code>,
+<code>shipment_history</code>, and <code>master_woc</code>. This demonstrates
+feasibility of loading and joining SAP tables and running initial
+analyses. The final proposal builds on this by formalizing targets, full
+feature set, model comparison, and report structure.</p>
+<hr />
+<h2 id="evaluation">Evaluation</h2>
+<p><strong>Technical performance:</strong> Success will be evaluated by
+(1) correct derivation of backorder/overstock targets and
+demand/inventory signals from SAP data; (2) classification metrics
+(such as precision, recall, F1, ROC-AUC) and interpretability of feature
+importance; (3) quality and actionability of numeric outputs (demand
+forecasts, shortfall/excess estimates); and (4) reproducibility of the
+pipeline and clarity of documentation.</p>
+<p><strong>Ethical and social impact:</strong> The project uses a public
+Kaggle dataset (no confidential or personal data). Considerations
+include: avoiding overclaiming predictive accuracy; clearly stating
+assumptions and limitations; and documenting how the approach would need
+to be validated on company-specific data before operational use. No user
+or confidential data will be used or shared.</p>
+<p><strong>Feedback:</strong> Results will be reviewed against capstone
+rubric and any feedback from advisors or peers; the report will be
+revised accordingly before final submission.</p>
+<hr />
+<h2 id="conclusion">Conclusion</h2>
+<p>This proposal outlines a data science capstone that addresses real
+supply chain problems (backorder and overstock risk, plus demand and
+inventory levels) using the SAP BigQuery dataset. The approach combines
+classification (who is at risk?) with regression/forecasting (how much
+shortfall or excess? what order quantity?) to produce actionable outputs
+for production and replenishment decisions. The work is scoped to a
+single, well-documented data source and a reproducible Python pipeline,
+with clear sprint milestones (Jan 20 – May 1) and deliverables (pipeline,
+report in MD/HTML/PDF). Success will be measured
+by technical quality of models and outputs and by the clarity and
+reproducibility of the final report.</p>
+<hr />
+<h2 id="references-and-data">References and data</h2>
+<ul>
+<li><strong>SAP BigQuery Dataset (Kaggle):</strong> <a
+href="https://www.kaggle.com/datasets/mustafakeser4/sap-dataset-bigquery-dataset">SAP
+Dataset | BigQuery Dataset</a> by Mustafa Keser. Used for demand
+signals, inventory context, and order-to-delivery flow.</li>
+<li><strong>Repository:</strong> Data and code in this capstone
+repository; pipeline entry point in <code>README.md</code> and
+<code>run_pipeline.py</code>; reports in <code>docs/reports/md/</code> and
+<code>docs/reports/html/</code>.</li>
+</ul>
+</body>
+</html>
