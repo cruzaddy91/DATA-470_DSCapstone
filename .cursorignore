@@ -1,0 +1,3 @@
+# Exclude large data from Cursor indexing (keeps editor fast)
+data/
+output/
