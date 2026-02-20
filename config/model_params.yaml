@@ -1,0 +1,13 @@
+# Model hyperparameters (optional overrides)
+# Used when running modeling scripts; defaults in code apply if not set
+
+classification:
+  # Backorder/overstock risk models
+  test_size: 0.2
+  random_state: 42
+  # Add model-specific params as needed
+
+regression:
+  # Demand forecasting
+  test_size: 0.2
+  random_state: 42

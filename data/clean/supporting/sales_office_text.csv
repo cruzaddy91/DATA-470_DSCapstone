@@ -1,0 +1,33 @@
+client_id,language_code,distribution_channel,vtext,operation_flag,is_deleted,record_timestamp
+100,D,1,Vertriebsweg 01,I,False,2022-04-21 15:30:14.492997+00:00
+100,E,1,Distribtn Channel 01,I,False,2022-04-21 15:30:14.492997+00:00
+100,E,10,Wholesale Sales,I,False,2022-04-21 15:30:14.492997+00:00
+100,E,20,Digital Sales,I,False,2022-04-21 15:30:14.492997+00:00
+100,E,30,Retail Sales,I,False,2022-04-21 15:30:14.492997+00:00
+0,D,1,Vertriebsweg 01,L,False,2022-01-31 20:43:58.266103+00:00
+1,D,1,Vertriebsweg 01,L,False,2022-01-31 20:43:58.266103+00:00
+50,D,1,Vertriebsweg 01,L,False,2022-01-31 20:43:58.266103+00:00
+100,D,1,Vertriebsweg 01,L,False,2022-01-31 20:43:58.266103+00:00
+200,D,1,Vertriebsweg 01,L,False,2022-01-31 20:43:58.266103+00:00
+200,D,10,Vertriebsweg 01,L,False,2022-01-31 20:43:58.266103+00:00
+200,D,20,Vertriebsweg 01,L,False,2022-01-31 20:43:58.266103+00:00
+200,D,30,Vertriebsweg 01,L,False,2022-01-31 20:43:58.266103+00:00
+250,D,1,Vertriebsweg 01,L,False,2022-01-31 20:43:58.266103+00:00
+250,D,10,Vertriebsweg 01,L,False,2022-01-31 20:43:58.266103+00:00
+250,D,20,Vertriebsweg 01,L,False,2022-01-31 20:43:58.266103+00:00
+250,D,30,Vertriebsweg 01,L,False,2022-01-31 20:43:58.266103+00:00
+0,E,1,Distribtn Channel 01,L,False,2022-01-31 20:43:58.266103+00:00
+1,E,1,Distribtn Channel 01,L,False,2022-01-31 20:43:58.266103+00:00
+50,E,1,Distribtn Channel 01,L,False,2022-01-31 20:43:58.266103+00:00
+50,E,10,Wholesale Sales,L,False,2022-01-31 20:43:58.266103+00:00
+50,E,20,Digital Sales,L,False,2022-01-31 20:43:58.266103+00:00
+50,E,30,Retail Sales,L,False,2022-01-31 20:43:58.266103+00:00
+100,E,1,Distribtn Channel 01,L,False,2022-01-31 20:43:58.266103+00:00
+200,E,1,Distribtn Channel 01,L,False,2022-01-31 20:43:58.266103+00:00
+200,E,10,Retail,L,False,2022-01-31 20:43:58.266103+00:00
+200,E,20,Direct,L,False,2022-01-31 20:43:58.266103+00:00
+200,E,30,Online,L,False,2022-01-31 20:43:58.266103+00:00
+250,E,1,Distribtn Channel 01,L,False,2022-01-31 20:43:58.266103+00:00
+250,E,10,Retail,L,False,2022-01-31 20:43:58.266103+00:00
+250,E,20,Direct,L,False,2022-01-31 20:43:58.266103+00:00
+250,E,30,Online,L,False,2022-01-31 20:43:58.266103+00:00

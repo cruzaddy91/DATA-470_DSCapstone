@@ -1,0 +1,13 @@
+,count,pct
+total_quantity_delivered,52118,100.0
+total_delivery_quantity,52118,100.0
+goods_movement_status,52113,100.0
+requested_delivery_date_schedule,52097,100.0
+total_requested_quantity,52097,100.0
+total_confirmed_quantity,52097,100.0
+billing_status,51627,99.1
+storage_location,45798,87.9
+total_billed_quantity,21387,41.0
+total_billed_value,21387,41.0
+product_hierarchy,11748,22.5
+material_description_text,9125,17.5

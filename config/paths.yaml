@@ -1,0 +1,19 @@
+# Project paths configuration
+# Override as needed for different environments
+
+data:
+  raw_main: data/raw/main
+  raw_supporting: data/raw/supporting
+  clean_main: data/clean/main
+  clean_supporting: data/clean/supporting
+  processed: data/processed
+
+output:
+  models: models
+  pdf: output/pdf
+  tables: output/tables
+  figures: output/figures
+
+docs:
+  reports_html: docs/reports/html
+  reports_md: docs/reports/md

@@ -1,0 +1,9 @@
+feature,importance
+saleable_inventory,0.4493245243031613
+backorder_aging_days,0.23529430174679597
+outstanding_qty,0.1498835579854193
+total_quantity_delivered,0.058348251380046526
+cumulative_order_quantity,0.04374213385722443
+net_value,0.03340121145375498
+material_type_enc,0.023618057872780887
+item_category_enc,0.0063879614008166595
