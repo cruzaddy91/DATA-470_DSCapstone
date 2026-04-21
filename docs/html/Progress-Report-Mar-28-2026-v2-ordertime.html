@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Progress Report Mar 28, 2026 - Order-Time Backorder v2</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <style>
+    :root {
+      --brand-blue: #112467;
+      --text: #212121;
+      --muted: #666;
+      --bg: #f5f5f5;
+      --card: #ffffff;
+      --border: #ebebeb;
+      --info-bg: #f2f3f5;
+      --success: #1e7e34;
+      --warning: #b86b00;
+      --error: #b42318;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--text);
+      background-color: var(--bg);
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 980px;
+      margin: 0 auto 40px auto;
+      background: var(--card);
+      padding: 40px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+
+    .header {
+      border-bottom: 3px solid var(--brand-blue);
+      padding-bottom: 20px;
+      margin-bottom: 22px;
+    }
+
+    .report-brand {
+      display: flex;
+      align-items: center;
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .report-logo { max-width: 250px; height: auto; }
+    .report-logo img { max-width: 100%; height: auto; }
+
+    .header h1 {
+      color: var(--brand-blue);
+      font-size: 2.2em;
+      margin-bottom: 8px;
+      margin-top: 18px;
+    }
+
+    .header .subtitle {
+      color: var(--muted);
+      font-size: 1.05em;
+    }
+
+    .meta-info {
+      background: var(--info-bg);
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 22px;
+      border-left: 4px solid var(--brand-blue);
+    }
+
+    .meta-info p { margin: 5px 0; }
+    .meta-info strong { color: var(--brand-blue); }
+
+    .section { margin-bottom: 32px; }
+
+    .section h2 {
+      color: var(--brand-blue);
+      font-size: 1.45em;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .section h3 {
+      color: var(--brand-blue);
+      font-size: 1.1em;
+      margin-top: 20px;
+      margin-bottom: 12px;
+    }
+
+    .info-box,
+    .success-box,
+    .warning-box,
+    .error-box {
+      padding: 12px;
+      border-radius: 5px;
+      margin: 14px 0;
+      border-left: 4px solid;
+    }
+
+    .info-box {
+      background: #d1ecf1;
+      border-color: #17a2b8;
+    }
+
+    .success-box {
+      background: #d4edda;
+      border-color: var(--success);
+    }
+
+    .warning-box {
+      background: #fffbf0;
+      border-color: var(--warning);
+    }
+
+    .error-box {
+      background: #fdecea;
+      border-color: var(--error);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      background: #f2f3f5;
+      color: var(--brand-blue);
+      font-weight: 700;
+      font-size: 0.95em;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .delta-good { color: var(--success); font-weight: 700; }
+    .delta-bad { color: var(--error); font-weight: 700; }
+    .mono { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 0.95em; }
+
+    .viz-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin: 24px 0;
+    }
+
+    .viz-card {
+      background: var(--info-bg);
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid var(--brand-blue);
+    }
+
+    .viz-card h4 {
+      color: var(--brand-blue);
+      margin-bottom: 12px;
+      font-size: 1.1em;
+    }
+
+    .viz-card img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+      display: block;
+      margin-top: 10px;
+    }
+
+    ul { margin-left: 24px; }
+    li { margin: 8px 0; }
+
+    .footer {
+      margin-top: 26px;
+      padding-top: 18px;
+      border-top: 2px solid #e0e0e0;
+      color: var(--muted);
+      font-size: 0.92em;
+    }
+
+    @media print {
+      @page { size: letter; margin: 1in; }
+      html, body { margin: 0; padding: 0; background: #fff; }
+      .container { box-shadow: none; }
+      p, .info-box, .success-box, .warning-box, .error-box, table, .viz-card, img {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+        break-after: avoid;
+      }
+      .section { page-break-inside: avoid; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="report-brand">
+        <div class="report-logo">
+          <img src="../../assets/png/WU_Logo_Horz_Copper-2000x323-2602323276.png" alt="Westminster University" />
+        </div>
+      </div>
+      <h1>Progress Report Mar 28, 2026</h1>
+      <p class="subtitle">Data Capstone - SAP Backorder Prediction | Order-Time Leakage Mitigation v2</p>
+    </div>
+
+    <div class="meta-info">
+      <p><strong>Purpose:</strong> Document the March 28 order-time modeling reset, the exact mitigation changes shipped to the repo, and whether those changes reduced validation inflation.</p>
+      <p><strong>Scope:</strong> Raw-to-clean target prep, order-time feature contract, split strategy, notebook governance, new v2 artifacts, and old-vs-new metric comparison.</p>
+      <p><strong>Status:</strong> New order-time dataset contract is live. Notebook training has been retired. v2 artifacts were rebuilt and evaluated on March 28, 2026 using a clean local Python environment.</p>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="section">
+      <h2>Why We Intervened</h2>
+      <p>The previous workflow mixed snapshot-style fulfillment state with trainable features, allowed notebook-owned artifact writes, and reported strong grouped metrics even though the temporal holdout collapsed. That pattern pointed to leakage and split inflation rather than true forward generalization.</p>
+      <div class="error-box">
+        <strong>Observed failure mode:</strong> The legacy path could score very high on grouped/random-style validation while still producing a temporal holdout F1 of <span class="mono">0.0000</span>.
+      </div>
+      <div class="warning-box">
+        <strong>Key implication:</strong> The goal of this intervention was not to maximize F1 immediately. The first goal was to force the validation process to become honest.
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>What Changed In Code</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th>v2 Change</th>
+            <th>Effect On Overfitting Risk</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Dataset contract</td>
+            <td>New trainable table <span class="mono">master_order_fulfillment_modeling_v2_ordertime.csv</span> built from order-time fields only.</td>
+            <td>Separates trainable order-time features from legacy snapshot target tables.</td>
+          </tr>
+          <tr>
+            <td>Forbidden columns</td>
+            <td>Excluded delivery, billing, inventory, outstanding, backorder, aging, and status fields from v2 modeling input.</td>
+            <td>Removes direct target builders and post-outcome state proxies.</td>
+          </tr>
+          <tr>
+            <td>Null policy</td>
+            <td>Kept nulls through dataset assembly and added explicit missingness indicators inside the production prep path.</td>
+            <td>Stops silent <span class="mono">fillna(0)</span> from turning missing fulfillment data into a target proxy.</td>
+          </tr>
+          <tr>
+            <td>Grain integrity</td>
+            <td>Validated one row per <span class="mono">client_id + sales_document_number + item_number</span> before and after the v2 merge.</td>
+            <td>Prevents row expansion and hidden one-to-many leakage.</td>
+          </tr>
+          <tr>
+            <td>Split policy</td>
+            <td>Production evaluation now uses grouped holdout plus a calendar-based temporal holdout that expands until the test window has enough positives, with temporal-first model selection.</td>
+            <td>Prevents random row split and prevents meaningless last-20%-of-rows temporal slices.</td>
+          </tr>
+          <tr>
+            <td>Notebook governance</td>
+            <td><span class="mono">notebooks/02_modeling.ipynb</span> and <span class="mono">notebooks/03_conclusion.ipynb</span> are now read-only viewers of production outputs.</td>
+            <td>Stops notebooks from overwriting model artifacts with leaky training logic.</td>
+          </tr>
+          <tr>
+            <td>Magnitude modeling</td>
+            <td>Backorder-units regression was deferred from the official path.</td>
+            <td>Removes a second task that was tied to the same snapshot-style target construction.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Validation Workflow Run Today</h2>
+      <p>All v2 outputs in this report were regenerated from the current repo state using a clean project-local virtual environment because the system Anaconda install had a broken NumPy/SciPy/sklearn stack.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Step</th>
+            <th>Command</th>
+            <th>Outcome</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Clean runtime</td>
+            <td class="mono">python -m venv .venv-codex</td>
+            <td>Created a local environment with compatible NumPy 1.26 / SciPy 1.13 / sklearn 1.5 pins.</td>
+          </tr>
+          <tr>
+            <td>Rebuild processed data</td>
+            <td class="mono">.venv-codex/bin/python -m src.data.run_pipeline</td>
+            <td>Rebuilt core tables, BRD metrics, legacy targets, and the new v2 order-time modeling table.</td>
+          </tr>
+          <tr>
+            <td>Run v2 evaluation</td>
+            <td class="mono">python scripts/run_modeling.py</td>
+            <td>Generated versioned v2 metrics, model artifacts, figures, and comparison tables.</td>
+          </tr>
+          <tr>
+            <td>Run diagnostics</td>
+            <td class="mono">python scripts/run_auc_diagnostics.py</td>
+            <td>Generated the leakage-safe dataset contract and duplication diagnostics.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Old vs New Overfitting Comparison</h2>
+      <p>The clearest check is whether grouped validation stayed unrealistically high relative to temporal validation. Lower grouped scores are acceptable if the gap between grouped and temporal scores shrinks.</p>
+
+      <h3>Best Grouped vs Temporal Scores</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Version</th>
+            <th>Best Grouped Model</th>
+            <th>Grouped Accuracy</th>
+            <th>Grouped Precision</th>
+            <th>Grouped Recall</th>
+            <th>Grouped F1</th>
+            <th>Grouped PR-AUC</th>
+            <th>Best Temporal Model</th>
+            <th>Temporal Accuracy</th>
+            <th>Temporal Precision</th>
+            <th>Temporal Recall</th>
+            <th>Temporal F1</th>
+            <th>Temporal PR-AUC</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Legacy baseline</td>
+            <td>LightGBM</td>
+            <td>0.9866</td>
+            <td>0.9169</td>
+            <td>0.9539</td>
+            <td>0.9351</td>
+            <td>0.9745</td>
+            <td>Logistic Regression</td>
+            <td>0.9992</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.0100</td>
+          </tr>
+          <tr>
+            <td>Order-time v2</td>
+            <td>LightGBM</td>
+            <td>0.9699</td>
+            <td>0.5221</td>
+            <td>0.5990</td>
+            <td>0.5579</td>
+            <td>0.6116</td>
+            <td>Logistic Regression</td>
+            <td>0.9890</td>
+            <td>0.3333</td>
+            <td>0.2414</td>
+            <td>0.2800</td>
+            <td>0.1856</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="info-box">
+        <strong>Temporal split policy now used in production:</strong> test window starts on <span class="mono">2021-07-22</span>, covers <span class="mono">251</span> days, contains <span class="mono">6,521</span> labeled rows and <span class="mono">58</span> positives, and was selected by the <span class="mono">latest_cutoff_with_minimum_positive_support</span> rule after unresolved outcomes were excluded from training and evaluation.
+      </div>
+
+      <h3>Inflation Gap Summary</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Legacy Gap<br />(Group - Temporal)</th>
+            <th>v2 Gap<br />(Group - Temporal)</th>
+            <th>Gap Change</th>
+            <th>Interpretation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Precision</td>
+            <td>0.9169</td>
+            <td>0.1888</td>
+            <td class="delta-good">-0.7281</td>
+            <td>Inflation reduced.</td>
+          </tr>
+          <tr>
+            <td>Recall</td>
+            <td>0.9539</td>
+            <td>0.3576</td>
+            <td class="delta-good">-0.5963</td>
+            <td>Inflation reduced.</td>
+          </tr>
+          <tr>
+            <td>F1</td>
+            <td>0.9351</td>
+            <td>0.2779</td>
+            <td class="delta-good">-0.6572</td>
+            <td>Grouped optimism dropped materially.</td>
+          </tr>
+          <tr>
+            <td>PR-AUC</td>
+            <td>0.9645</td>
+            <td>0.4261</td>
+            <td class="delta-good">-0.5384</td>
+            <td>Ranking inflation reduced.</td>
+          </tr>
+          <tr>
+            <td>ROC-AUC</td>
+            <td>0.0488</td>
+            <td>0.1092</td>
+            <td class="delta-bad">+0.0604</td>
+            <td>Temporal ranking remains weaker than grouped validation, but it is now based on observed outcomes only rather than fulfillment missingness.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="success-box">
+        <strong>Primary result:</strong> The stricter observed-outcome v2 label reduced validation inflation even further and removed the old dependency on missing delivery quantities. Grouped F1 dropped from <span class="mono">0.9351</span> to <span class="mono">0.5579</span>, while temporal F1 is now <span class="mono">0.2800</span> on a cleaner, fully observed holdout.
+      </div>
+
+      <div class="warning-box">
+        <strong>But not fully solved:</strong> Late-period label sparsity and observation coverage remain real. Only <span class="mono">31,177</span> of <span class="mono">52,118</span> rows are currently labelable under the observed-outcome rule, and the last <span class="mono">180</span> days only contain <span class="mono">32</span> positives across <span class="mono">5,658</span> labeled rows.
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Data Contract And Diagnostic Checks</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Check</th>
+            <th>v2 Result</th>
+            <th>Interpretation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Trainable table</td>
+            <td class="mono">master_order_fulfillment_modeling_v2_ordertime.csv</td>
+            <td>Versioned artifact separated from legacy snapshot outputs.</td>
+          </tr>
+          <tr>
+            <td>Order-grain duplicates</td>
+            <td>0</td>
+            <td>No exact duplication at the official modeling grain.</td>
+          </tr>
+          <tr>
+            <td>Legacy duplicate share</td>
+            <td>0.5655</td>
+            <td>Legacy snapshot feature signatures remain heavily repeated.</td>
+          </tr>
+          <tr>
+            <td>v2 safe duplicate share</td>
+            <td>0.2935</td>
+            <td>Still high enough to require group/time validation, but materially below the legacy leaky signature share.</td>
+          </tr>
+          <tr>
+            <td>Recent-window sparsity</td>
+            <td>Last 90 days: 5,333 labeled rows / 25 positives. Last 180 days: 5,658 labeled rows / 32 positives.</td>
+            <td>Temporal evaluation must use calendar windows with minimum positive support, and unresolved rows must stay out of the label.</td>
+          </tr>
+          <tr>
+            <td>Outcome coverage</td>
+            <td>31,177 labeled rows, 20,941 unresolved rows, 59.8% label coverage.</td>
+            <td>The trainable set now excludes pending or missing-outcome rows instead of forcing them into noisy labels.</td>
+          </tr>
+          <tr>
+            <td>Excluded leaky columns</td>
+            <td>Delivery, billing, inventory, outstanding, backorder, aging, and status fields excluded.</td>
+            <td>Core leakage vectors are blocked from training input.</td>
+          </tr>
+          <tr>
+            <td>Legacy snapshot rule</td>
+            <td>PR-AUC 0.4530, ROC-AUC 0.9074</td>
+            <td>Confirms the old snapshot-style target logic is still highly predictive of itself and should not be used as the official trainable path.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Visual Artifacts Generated</h2>
+      <div class="viz-grid">
+        <div class="viz-card">
+          <h4>v2 Target Balance</h4>
+          <p>Saved from the production v2 dataset and inventory target outputs.</p>
+          <img src="../../output/figures/target_balance_v2_ordertime.png" alt="Target balance v2" />
+        </div>
+        <div class="viz-card">
+          <h4>v2 Confusion Matrices</h4>
+          <p>Temporal holdout confusion matrices for the versioned v2 classifier path.</p>
+          <img src="../../output/figures/classification_confusion_matrices_v2_ordertime.png" alt="Confusion matrices v2" />
+        </div>
+        <div class="viz-card">
+          <h4>v2 Feature Importance</h4>
+          <p>Feature importance from the selected versioned v2 training artifacts.</p>
+          <img src="../../output/figures/classification_feature_importance_v2_ordertime.png" alt="Feature importance v2" />
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Artifacts And Paths</h2>
+      <ul>
+        <li><span class="mono">data/processed/master_order_fulfillment_modeling_v2_ordertime.csv</span> - official order-time trainable table.</li>
+        <li><span class="mono">models/classification_metrics_v2_ordertime.json</span> - full versioned classification metrics.</li>
+        <li><span class="mono">models/overfit_eval_results_v2_ordertime.json</span> - grouped and temporal holdout evaluation results.</li>
+        <li><span class="mono">models/auc_diagnostics_v2_ordertime.json</span> - dataset contract, duplicate share, and legacy snapshot diagnostics.</li>
+        <li><span class="mono">output/tables/overfit_best_split_comparison_v2_ordertime.csv</span> - best grouped vs temporal comparison for old and new workflows.</li>
+        <li><span class="mono">output/tables/overfit_gap_summary_v2_ordertime.csv</span> - metric gap summary used in this report.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Conclusion</h2>
+      <p>The order-time v2 changes did what they were supposed to do first: they reduced the inflated grouped validation results, removed the missing-delivery target artifact, and made the production path much harder to leak. That is a real improvement. The remaining problem is no longer mostly notebook leakage or fulfillment-field contamination. It is that many late-period rows are still unresolved, and the observed positive class remains sparse even after filtering to cleaner labels.</p>
+      <div class="info-box">
+        <strong>Practical reading:</strong> v2 now gives a cleaner and more trustworthy answer than the legacy workflow, but it does not magically create a dense positive class. The next iteration should focus on improving outcome coverage, thresholding under sparse positives, and deciding whether the business wants a longer prediction window or a different positive-event definition.
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>Progress Report Mar 28, 2026 | Data Capstone - SAP Backorder Prediction | Order-Time Leakage Mitigation v2 | Addy Cruz</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,32 @@
+%% Capstone poster — panel 2 (EnableCV-style: splits → models → metrics)
+%% Compare: standup unified flow (pipelines vs datasets legend pattern)
+
+flowchart TB
+  subgraph V["Validation design"]
+    T[Temporal holdout<br/>train older → test later]
+    G[Grouped holdout<br/>diagnostic]
+  end
+
+  subgraph M["Models"]
+    LR[Logistic regression]
+    LGB[LightGBM]
+  end
+
+  subgraph O["Outputs"]
+    MET[PR-AUC · ROC-AUC<br/>F1 · precision · recall]
+  end
+
+  T --> LR
+  T --> LGB
+  G --> LR
+  G --> LGB
+  LR --> MET
+  LGB --> MET
+
+  classDef pipeline fill:#ffecb3,stroke:#ff8f00,color:#212121
+  classDef process fill:#c8e6c9,stroke:#2e7d32,color:#212121
+  classDef reporting fill:#f8bbd0,stroke:#c2185b,color:#212121
+
+  class T,G pipeline
+  class LR,LGB process
+  class MET reporting

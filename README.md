@@ -73,8 +73,10 @@ Selection should be based on the `temporal_holdout` results, with `PR-AUC` and `
 | `docs/md/v2_model_truth.md` | Short canonical summary of the official modeling story |
 | `requirements-v2.txt` | Minimal package set for the official `v2` workflow |
 | `src/features/build_targets.py` | Builds the official `v2` order-time modeling table |
-| `src/models/backorder_modeling.py` | Trains and evaluates the official classifiers |
+| `src/models/v2_ordertime/` | Separate LR and LightGBM pipeline modules, shared preprocessing + evaluation; `classifier_registry.py` wires both |
+| `src/models/backorder_modeling.py` | Dataset prep, splits, orchestration, artifacts (imports `v2_ordertime` for models) |
 | `scripts/run_modeling.py` | Runs the modeling pipeline |
+| `scripts/run_v2_full_chain.sh` | Runs steps 1–4 above in order |
 | `scripts/generate_model_performance_side_by_side_html.py` | Writes a simple comparison report |
 | `models/classification_metrics_v2_ordertime.json` | Main saved classification metrics |
 
@@ -88,6 +90,31 @@ python run_pipeline.py
 python -m src.features.build_targets
 python scripts/run_modeling.py
 python scripts/generate_model_performance_side_by_side_html.py
+```
+
+## End-to-end (dependency order)
+
+Run steps **in this order**; each step assumes the previous outputs exist under `data/processed/`.
+
+| Step | What it does |
+|------|----------------|
+| 1 | `python run_pipeline.py` — master tables + BRD metrics |
+| 2 | `python -m src.features.build_targets` — **`master_order_fulfillment_modeling_v2_ordertime.csv`** (+ other targets) |
+| 3 | `python scripts/run_modeling.py` — metrics JSON, figures, joblib models |
+| 4 | `python scripts/generate_model_performance_side_by_side_html.py` — `docs/html/Model-Performance-SideBySide.html` |
+
+**One shot** (uses `.venv-v2/bin/python` if present):
+
+```bash
+chmod +x scripts/run_v2_full_chain.sh
+./scripts/run_v2_full_chain.sh
+```
+
+**Make** (same order; set `V2PY` if not using `.venv-v2`):
+
+```bash
+make v2-all
+# or stepwise: make v2-data && make v2-targets && make v2-model && make v2-report
 ```
 
 ## Project Structure

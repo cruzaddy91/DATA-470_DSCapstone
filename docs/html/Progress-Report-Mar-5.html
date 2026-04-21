@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Progress Report Mar 5th - Data Capstone</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --brand-blue: #112467;
+      --text: #212121;
+      --muted: #666;
+      --bg: #f5f5f5;
+      --card: #ffffff;
+      --border: #ebebeb;
+      --info-bg: #f2f3f5;
+      --success: #1e7e34;
+      --warning: #b86b00;
+      --error: #dc3545;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--text);
+      background-color: var(--bg);
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto 40px auto;
+      background: var(--card);
+      padding: 40px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+
+    .header {
+      border-bottom: 3px solid var(--brand-blue);
+      padding-bottom: 20px;
+      margin-bottom: 22px;
+    }
+
+    .report-brand {
+      display: flex;
+      align-items: center;
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .report-logo { max-width: 250px; height: auto; }
+    .report-logo img { max-width: 100%; height: auto; }
+
+    .header h1 {
+      color: var(--brand-blue);
+      font-size: 2.2em;
+      margin-bottom: 8px;
+      margin-top: 18px;
+    }
+
+    .header .subtitle {
+      color: var(--muted);
+      font-size: 1.05em;
+    }
+
+    .meta-info {
+      background: var(--info-bg);
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 22px;
+      border-left: 4px solid var(--brand-blue);
+    }
+
+    .meta-info p { margin: 5px 0; }
+    .meta-info strong { color: var(--brand-blue); }
+
+    .section { margin-bottom: 32px; }
+
+    .section h2 {
+      color: var(--brand-blue);
+      font-size: 1.45em;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .section h3 {
+      color: var(--brand-blue);
+      font-size: 1.1em;
+      margin-top: 20px;
+      margin-bottom: 12px;
+    }
+
+    .info-box {
+      background: #d1ecf1;
+      border: 1px solid #bee5eb;
+      border-left: 4px solid #17a2b8;
+      padding: 12px;
+      border-radius: 5px;
+      margin: 14px 0;
+    }
+
+    .info-box strong { color: #0c5460; }
+
+    .success-box {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      border-left: 4px solid var(--success);
+      padding: 12px;
+      border-radius: 5px;
+      margin: 14px 0;
+    }
+
+    .success-box strong { color: #155724; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      background: #f2f3f5;
+      color: var(--brand-blue);
+      font-weight: 700;
+      font-size: 0.95em;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .viz-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin: 24px 0;
+    }
+
+    .viz-card {
+      background: var(--info-bg);
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid var(--brand-blue);
+    }
+
+    .viz-card h4 {
+      color: var(--brand-blue);
+      margin-bottom: 12px;
+      font-size: 1.1em;
+    }
+
+    .viz-card img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+      display: block;
+      margin-top: 10px;
+    }
+
+    .mermaid {
+      margin: 20px 0;
+      background: var(--info-bg);
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid var(--brand-blue);
+    }
+
+    .footer {
+      margin-top: 26px;
+      padding-top: 18px;
+      border-top: 2px solid #e0e0e0;
+      color: var(--muted);
+      font-size: 0.92em;
+    }
+
+    @media print {
+      @page { size: letter; margin: 1in; }
+      html, body { margin: 0; padding: 0; background: #fff; orphans: 2; widows: 2; }
+      .container { box-shadow: none; }
+      /* Avoid breaks inside paragraphs, boxes, tables, figures */
+      p, .info-box, .success-box, .highlight, .viz-card, table, .mermaid, img {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      /* Keep section headers with their content (no orphaned headers) */
+      h2, h3, h4 {
+        page-break-after: avoid;
+        break-after: avoid;
+      }
+      /* Keep header with first line of section */
+      h2 + p, h3 + p, h4 + p {
+        page-break-before: avoid;
+        break-before: avoid;
+      }
+      .viz-grid { page-break-inside: avoid; break-inside: avoid; }
+      .section { page-break-inside: avoid; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="report-brand">
+        <div class="report-logo">
+          <img src="../../assets/png/WU_Logo_Horz_Copper-2000x323-2602323276.png" alt="Westminster University" />
+        </div>
+      </div>
+      <h1>Progress Report Mar 5th</h1>
+      <p class="subtitle">Data Capstone - SAP Backorder Prediction | Models, Visualizations, Progress</p>
+    </div>
+
+    <div class="meta-info">
+      <p><strong>Purpose:</strong> March progress update: trained models, data visualizations, and sprint status.</p>
+      <p><strong>Scope:</strong> Classification results (4 models), regression (Ridge/ElasticNet), EDA figures, sprint compliance.</p>
+      <p><strong>Status:</strong> Sprint 3 complete. Sprint 4 in progress. Ridge/ElasticNet regression for backorder magnitude implemented.</p>
+    </div>
+  </div>
+
+  <!-- Model Results -->
+  <div class="container" id="section-models">
+    <div class="section">
+      <h2>Model Results</h2>
+      <p><strong>What:</strong> Four classifiers predict backorder risk. <strong>Data:</strong> 52K rows, 80/20 stratified split (train 41.7K, test 10.4K), ~10% positive. <strong>Decisions:</strong> class_weight/scale_pos_weight for imbalance. <em>Note: v1 used leaky features; v2 removed them.</em> <strong>Interpret:</strong> F1 = precision/recall balance; ROC-AUC = ranking quality.</p>
+
+      <h3>Classification Metrics (Test Set)</h3>
+      <p>Test-set metrics. Higher recall = fewer missed backorders; higher precision = fewer false alarms.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Accuracy</th>
+            <th>Precision</th>
+            <th>Recall</th>
+            <th>F1</th>
+            <th>ROC-AUC</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Logistic Regression</td>
+            <td>90.0%</td>
+            <td>50.7%</td>
+            <td>98.7%</td>
+            <td>67.0%</td>
+            <td>0.91</td>
+          </tr>
+          <tr>
+            <td>Random Forest</td>
+            <td>99.97%</td>
+            <td>99.81%</td>
+            <td>99.91%</td>
+            <td>99.86%</td>
+            <td>1.00</td>
+          </tr>
+          <tr>
+            <td>XGBoost</td>
+            <td>99.95%</td>
+            <td>99.72%</td>
+            <td>99.81%</td>
+            <td>99.77%</td>
+            <td>1.00</td>
+          </tr>
+          <tr>
+            <td>LightGBM</td>
+            <td>100%</td>
+            <td>100%</td>
+            <td>100%</td>
+            <td>100%</td>
+            <td>1.00</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="info-box">
+        <strong>Interpretation:</strong> Tree-based models (RF, XGBoost, LightGBM) achieve near-perfect performance. Logistic regression has high recall (catches most backorders) but lower precision (more false positives). LightGBM is the top performer.
+      </div>
+
+      <h3>Regression: Backorder Magnitude</h3>
+      <p>Ridge/ElasticNet predict log(1 + backorder_units) from same features. Outputs feed replenishment decisions (how much to order).</p>
+    </div>
+  </div>
+
+  <!-- Data Visualizations -->
+  <div class="container" id="section-viz">
+    <div class="section">
+      <h2>Data Visualizations</h2>
+      <p><strong>What:</strong> Figures from EDA and modeling. <strong>Interpret:</strong> Confusion matrices show true/false positives and negatives; feature importance shows which predictors matter; correlations show multicollinearity.</p>
+
+      <h3>Confusion Matrices (4 Models)</h3>
+      <p>Rows = actual, columns = predicted. Diagonal = correct. Top-left: true negatives; bottom-right: true positives. Lower off-diagonal = better.</p>
+      <p>Actual vs predicted backorder risk. Top row: Logistic Regression, Random Forest. Bottom row: XGBoost, LightGBM.</p>
+      <img src="../../output/figures/classification_confusion_matrices.png" alt="Confusion matrices" style="max-width: 100%; height: auto; margin-top: 12px; border-radius: 4px;" />
+
+      <h3>Feature Importance (Random Forest)</h3>
+      <p>Bar height = how much each feature reduces impurity. (v1: outstanding_qty, saleable_inventory top; v2 uses non-leaky features.)</p>
+      <img src="../../figures/classification_feature_importance.png" alt="Feature importance" style="max-width: 100%; height: auto; margin-top: 12px; border-radius: 4px;" />
+
+      <h3>Order Correlations</h3>
+      <p>Heatmap: |r| near 1 = strong linear relationship. High correlations between features may suggest redundancy.</p>
+      <img src="../../figures/correlations_order.png" alt="Correlations" style="max-width: 100%; height: auto; margin-top: 12px; border-radius: 4px;" />
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="container" id="section-progress">
+    <div class="section">
+      <h2>Progress</h2>
+      <p><strong>What:</strong> Four 2-week sprints. <strong>Flow:</strong> ETL → EDA → classification (LR + trees) → regression (Ridge/ElasticNet) → integration.</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Sprint</th>
+            <th>Dates</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Sprint 1</td>
+            <td>Jan 20 – Feb 2</td>
+            <td>Complete: ETL, master tables</td>
+          </tr>
+          <tr>
+            <td>Sprint 2</td>
+            <td>Feb 3 – Feb 16</td>
+            <td>Complete: EDA, visualizations</td>
+          </tr>
+          <tr>
+            <td>Sprint 3</td>
+            <td>Feb 17 – Mar 2</td>
+            <td>Complete: LR, RF, XGBoost, LightGBM, class imbalance</td>
+          </tr>
+          <tr>
+            <td>Sprint 4</td>
+            <td>Mar 3 – Mar 16</td>
+            <td>In progress: Ridge/ElasticNet regression</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="success-box">
+        <strong>Next:</strong> Finish Sprint 4 (demand forecasting, gradient boosting regressor if needed), then Sprint 5 integration.
+      </div>
+    </div>
+  </div>
+
+  <!-- Visual Summary: 3 Easiest-to-Interpret Items -->
+  <div class="container" id="section-visual-summary">
+    <div class="section">
+      <h2>Visual Summary: 3 Key Takeaways</h2>
+      <p><strong>Interpret:</strong> (1) Class balance—imbalance drives class_weight/scale_pos_weight. (2) Feature importance—top predictors. (3) Model comparison—tree models lead; LR baseline.</p>
+
+      <div class="viz-grid">
+        <div class="viz-card">
+          <h4>1. Class Balance (Target)</h4>
+          <p>~10% of order lines have backorder risk. We use class_weight and scale_pos_weight to handle this imbalance.</p>
+          <img src="../../figures/target_balance.png" alt="Target balance" />
+        </div>
+
+        <div class="viz-card">
+          <h4>2. Feature Importance</h4>
+          <p>Outstanding quantity and saleable inventory drive backorder predictions. Net value and backorder aging also matter.</p>
+          <img src="../../figures/classification_feature_importance.png" alt="Feature importance" />
+        </div>
+
+        <div class="viz-card">
+          <h4>3. Model Comparison</h4>
+          <p>LightGBM and XGBoost lead. Logistic regression is interpretable but has more false positives.</p>
+          <div class="mermaid">
+flowchart LR
+    subgraph Best
+        LGB[LightGBM 100% F1]
+    end
+    subgraph Strong
+        XGB[XGBoost 99.8%]
+        RF[RF 99.9%]
+    end
+    subgraph Baseline
+        LR[Logistic 67% F1]
+    end
+          </div>
+        </div>
+      </div>
+
+      <h3>Decision Flow: From Data to Prediction</h3>
+      <p>Data → features → classification (risk yes/no) and regression (magnitude) → replenishment action.</p>
+      <div class="mermaid">
+flowchart LR
+    A[Order Data] --> B[Features]
+    B --> C{Classification}
+    C --> D[Backorder Risk]
+    C --> E[No Risk]
+    B --> F[Ridge/ElasticNet]
+    F --> G[Backorder Magnitude]
+    D --> H[Action: Replenish]
+    G --> H
+      </div>
+
+      <h3>Sprint Progress (Gantt)</h3>
+      <p>Gantt: done = complete; active = in progress. Sprints 1–3 done; Sprint 4 active.</p>
+      <div class="mermaid">
+gantt
+    title Sprint Timeline
+    dateFormat YYYY-MM-DD
+    section Sprints
+    Sprint 1 ETL           :done, s1, 2026-01-20, 14d
+    Sprint 2 EDA           :done, s2, 2026-02-03, 14d
+    Sprint 3 Classification :done, s3, 2026-02-17, 14d
+    Sprint 4 Regression    :active, s4, 2026-03-03, 14d
+    Sprint 5 Integration  :s5, 2026-03-17, 14d
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="footer">
+      <p>Progress Report Mar 5th | Data Capstone - SAP Backorder Prediction | Addy Cruz</p>
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Progress Report Apr 9, 2026 - Capstone Completion Snapshot</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <style>
+    :root {
+      --brand-blue: #112467;
+      --text: #212121;
+      --muted: #666;
+      --bg: #f5f5f5;
+      --card: #ffffff;
+      --border: #ebebeb;
+      --info-bg: #f2f3f5;
+      --success: #1e7e34;
+      --warning: #b86b00;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--text);
+      background-color: var(--bg);
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 980px;
+      margin: 0 auto 40px auto;
+      background: var(--card);
+      padding: 40px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+
+    .header {
+      border-bottom: 3px solid var(--brand-blue);
+      padding-bottom: 20px;
+      margin-bottom: 22px;
+    }
+
+    .header h1 {
+      color: var(--brand-blue);
+      font-size: 2.2em;
+      margin-bottom: 8px;
+    }
+
+    .header .subtitle {
+      color: var(--muted);
+      font-size: 1.05em;
+    }
+
+    .meta-info {
+      background: var(--info-bg);
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 22px;
+      border-left: 4px solid var(--brand-blue);
+    }
+
+    .meta-info p { margin: 5px 0; }
+
+    .section { margin-bottom: 28px; }
+
+    .section h2 {
+      color: var(--brand-blue);
+      font-size: 1.35em;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .info-box, .success-box, .warning-box {
+      padding: 12px;
+      border-radius: 5px;
+      margin: 14px 0;
+      border-left: 4px solid;
+    }
+
+    .info-box {
+      background: #d1ecf1;
+      border-color: #17a2b8;
+    }
+
+    .success-box {
+      background: #d4edda;
+      border-color: var(--success);
+    }
+
+    .warning-box {
+      background: #fffbf0;
+      border-color: var(--warning);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      background: #f2f3f5;
+      color: var(--brand-blue);
+      font-weight: 700;
+      font-size: 0.95em;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    ul { margin-left: 22px; }
+    .mono { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 0.95em; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Progress Report - April 9, 2026</h1>
+      <p class="subtitle">Capstone completion snapshot: v2 three-way validation (temporal, grouped, recent 24-week); optional v3 demand + WOC features on a recent order window with stratified 80/20 and k-fold; snapshot backorder layered tables (stg/int/mart); side-by-side metrics in <span class="mono">Model-Performance-SideBySide.html</span>.</p>
+    </div>
+
+    <div class="meta-info">
+      <p><strong>Project:</strong> DATA-470 Capstone — SAP backorder risk and inventory analytics</p>
+      <p><strong>Author:</strong> Addy Cruz · Westminster University · Class of 2026</p>
+      <p><strong>Prior report:</strong> <span class="mono">docs/html/Progress-Report-Apr-2-2026.html</span></p>
+      <p><strong>Evidence run:</strong> <span class="mono">python -m src.features.build_targets</span> then <span class="mono">python scripts/run_modeling.py</span> — artifacts under <span class="mono">models/</span> and <span class="mono">output/tables/</span>. Primary modeling table: <span class="mono">master_order_fulfillment_modeling_v2_ordertime.csv</span>. v3 extension: <span class="mono">master_order_fulfillment_modeling_v3_demand_inventory_24wk.csv</span> (trailing 24-week shipped demand + WOC inventory, orders limited to last 24 calendar weeks). Snapshot backorder path: <span class="mono">stg_snapshot_backorder_line.csv</span>, <span class="mono">int_snapshot_backorder_derived.csv</span>, mart <span class="mono">master_order_fulfillment_modeling_snapshot_backorder.csv</span>. Visual comparison: <span class="mono">docs/html/Model-Performance-SideBySide.html</span> (regenerate with <span class="mono">python scripts/generate_model_performance_side_by_side_html.py</span>).</p>
+    </div>
+
+    <div class="section">
+      <h2>What is complete for submission</h2>
+      <ul>
+        <li><strong>ETL and targets:</strong> Master tables, BRD metrics, and the official v2 order-time modeling dataset with enforced grain and forbidden post-order fields.</li>
+        <li><strong>Classification:</strong> Four fitted pipelines (logistic regression, random forest, XGBoost, LightGBM); metrics, confusion matrices, feature importance, and <span class="mono">classification_model_comparison_v2_ordertime.csv</span> covering <strong>temporal</strong>, <strong>grouped</strong>, and <strong>recent 24-week</strong> evaluations.</li>
+        <li><strong>Production selection rule:</strong> Best model on <strong>temporal holdout</strong> by F1 and PR-AUC (sparse-positive forward test).</li>
+        <li><strong>Planning analytics (non-ML regression):</strong> Rolling shipment-based demand forecast file and weeks-of-coverage excess inventory table for reporting.</li>
+        <li><strong>Notebooks:</strong> EDA, modeling, and conclusion notebooks aligned to the same processed inputs and artifacts.</li>
+        <li><strong>Snapshot backorder path:</strong> ERP-style shortfall label for comparison; sklearn pipelines use <strong>order-time features only</strong> (not OSQ/SI in X), plus a two-feature logistic (<span class="mono">logistic_osq_si_only</span>) and the label-identity rule (<span class="mono">rule_outstanding_gt_saleable</span>) on temporal, grouped, and recent 24-week splits.</li>
+        <li><strong>Layered snapshot tables:</strong> <span class="mono">stg_snapshot_backorder_line</span> (staging inputs) and <span class="mono">int_snapshot_backorder_derived</span> (shortfall + rule flag) alongside the wide mart CSV.</li>
+        <li><strong>v3 demand + inventory experiment:</strong> Same v2 target on a <strong>recent 24-week order window</strong> with features from <strong>shipment_history</strong> (past shipments only, no future weeks) and <strong>master_woc</strong>; evaluation via <strong>stratified 80/20</strong> and <strong>stratified 5-fold</strong>. Secondary selection <span class="mono">selected_model_demand_inventory_v3</span> in JSON — does not replace the v2 temporal production pick.</li>
+        <li><strong>Side-by-side metrics page:</strong> <span class="mono">docs/html/Model-Performance-SideBySide.html</span> compares the four models across v2 splits and the v3 80/20 split.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Dataset and split summary</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Labeled modeling rows</td>
+            <td>31,177 (positive rate ≈ 3.38% overall)</td>
+          </tr>
+          <tr>
+            <td>Temporal holdout</td>
+            <td>Split date 2021-07-22 · test rows 6,521 · test positives 58 (≈ 0.89%) · strategy: latest cutoff with minimum positive support (≥50 positives, ≥90-day window)</td>
+          </tr>
+          <tr>
+            <td>Grouped holdout</td>
+            <td>Group key <span class="mono">sales_document_number</span> · test rows 6,205 · test positives 197 (≈ 3.17%)</td>
+          </tr>
+          <tr>
+            <td>Recent 24-week temporal holdout</td>
+            <td>Rows with <span class="mono">order_date</span> in (anchor − 24 weeks, anchor]; temporal sub-split inside that window only. Anchor <strong>2022-03-30</strong> · window <strong>2021-10-13</strong>–<strong>2022-03-30</strong> · <strong>5,874</strong> rows in window · split date <strong>2022-03-16</strong> · train 2,193 / test 3,681 · test positives <strong>14</strong> (≈ 0.38%) · strategy: minimum 10 test positives &amp; 14-day test span</td>
+          </tr>
+          <tr>
+            <td>Selected production classifier</td>
+            <td><strong>Logistic regression</strong> (still selected on <strong>global temporal</strong> holdout only; recent 24-week v2 block is diagnostic)</td>
+          </tr>
+          <tr>
+            <td>v3 modeling subset (recent orders)</td>
+            <td><strong>15,917</strong> rows in <span class="mono">master_order_fulfillment_modeling_v3_demand_inventory_24wk.csv</span> · same v2 label · adds demand shipped (24-week trailing, pre-order weeks only) + WOC saleable/AWD/WOC</td>
+          </tr>
+          <tr>
+            <td>v3 stratified 80/20 holdout</td>
+            <td>Train <strong>4,699</strong> / test <strong>1,175</strong> · test positives <strong>8</strong> (≈ 0.68%) · random stratified split (not a calendar forward test)</td>
+          </tr>
+          <tr>
+            <td>Secondary pick (v3 80/20)</td>
+            <td><strong>LightGBM</strong> by F1 / PR-AUC on that holdout — reported as <span class="mono">selected_model_demand_inventory_v3</span> in JSON only</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Classification metrics (order-time v2)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Validation</th>
+            <th>Model</th>
+            <th>Accuracy</th>
+            <th>Precision</th>
+            <th>Recall</th>
+            <th>F1</th>
+            <th>ROC-AUC</th>
+            <th>PR-AUC</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td rowspan="4">Temporal holdout</td>
+            <td>Logistic regression <em>(selected)</em></td>
+            <td>0.9890</td>
+            <td>0.3333</td>
+            <td>0.2414</td>
+            <td>0.2800</td>
+            <td>0.8484</td>
+            <td>0.1856</td>
+          </tr>
+          <tr>
+            <td>Random forest</td>
+            <td>0.9896</td>
+            <td>0.2500</td>
+            <td>0.0862</td>
+            <td>0.1282</td>
+            <td>0.5958</td>
+            <td>0.0857</td>
+          </tr>
+          <tr>
+            <td>XGBoost</td>
+            <td>0.9883</td>
+            <td>0.1786</td>
+            <td>0.0862</td>
+            <td>0.1163</td>
+            <td>0.7561</td>
+            <td>0.0576</td>
+          </tr>
+          <tr>
+            <td>LightGBM</td>
+            <td>0.9887</td>
+            <td>0.1923</td>
+            <td>0.0862</td>
+            <td>0.1190</td>
+            <td>0.8436</td>
+            <td>0.0824</td>
+          </tr>
+          <tr>
+            <td rowspan="4">Grouped holdout</td>
+            <td>Logistic regression</td>
+            <td>0.9707</td>
+            <td>0.5664</td>
+            <td>0.3249</td>
+            <td>0.4129</td>
+            <td>0.8394</td>
+            <td>0.3126</td>
+          </tr>
+          <tr>
+            <td>Random forest</td>
+            <td>0.9705</td>
+            <td>0.5389</td>
+            <td>0.4924</td>
+            <td>0.5146</td>
+            <td>0.9207</td>
+            <td>0.5081</td>
+          </tr>
+          <tr>
+            <td>XGBoost</td>
+            <td>0.9686</td>
+            <td>0.5046</td>
+            <td>0.5584</td>
+            <td>0.5301</td>
+            <td>0.9545</td>
+            <td>0.5284</td>
+          </tr>
+          <tr>
+            <td>LightGBM</td>
+            <td>0.9699</td>
+            <td>0.5221</td>
+            <td>0.5990</td>
+            <td>0.5579</td>
+            <td>0.9576</td>
+            <td>0.6116</td>
+          </tr>
+          <tr>
+            <td rowspan="4">Recent 24-week temporal</td>
+            <td>Logistic regression</td>
+            <td>0.9962</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.8895</td>
+            <td>0.1143</td>
+          </tr>
+          <tr>
+            <td>Random forest</td>
+            <td>0.9962</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.8098</td>
+            <td>0.1280</td>
+          </tr>
+          <tr>
+            <td>XGBoost</td>
+            <td>0.9962</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.7507</td>
+            <td>0.0349</td>
+          </tr>
+          <tr>
+            <td>LightGBM</td>
+            <td>0.9957</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.7420</td>
+            <td>0.0545</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top: 12px; color: var(--muted); font-size: 0.95em;">Operating threshold for the selected temporal model: ≈ <strong>0.824</strong> (tuned on validation; see <span class="mono">classification_metrics_v2_ordertime.json</span>).</p>
+    </div>
+
+    <div class="section">
+      <h2>Classification metrics (v3 demand + inventory, stratified 80/20)</h2>
+      <p style="color: var(--muted); font-size: 0.95em; margin-bottom: 10px;">Same four sklearn pipelines on the v3 feature set; test set is <strong>20%</strong> stratified random sample. Interpret with care: very few test positives (<strong>8</strong>); this split does <em>not</em> enforce forward calendar ordering.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Accuracy</th>
+            <th>Precision</th>
+            <th>Recall</th>
+            <th>F1</th>
+            <th>ROC-AUC</th>
+            <th>PR-AUC</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Logistic regression</td>
+            <td>0.9923</td>
+            <td>0.4545</td>
+            <td>0.6250</td>
+            <td>0.5263</td>
+            <td>0.9314</td>
+            <td>0.3020</td>
+          </tr>
+          <tr>
+            <td>Random forest</td>
+            <td>0.9949</td>
+            <td>1.0000</td>
+            <td>0.2500</td>
+            <td>0.4000</td>
+            <td>0.9272</td>
+            <td>0.3711</td>
+          </tr>
+          <tr>
+            <td>XGBoost</td>
+            <td>0.9940</td>
+            <td>0.6667</td>
+            <td>0.2500</td>
+            <td>0.3636</td>
+            <td>0.9750</td>
+            <td>0.5705</td>
+          </tr>
+          <tr>
+            <td>LightGBM <em>(v3 selected)</em></td>
+            <td>0.9957</td>
+            <td>1.0000</td>
+            <td>0.3750</td>
+            <td>0.5455</td>
+            <td>0.9869</td>
+            <td>0.7030</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top: 12px; color: var(--muted); font-size: 0.95em;">Stratified <strong>5-fold</strong> on the full v3 labeled set (example): LightGBM mean F1 <strong>0.658</strong> (std <strong>0.119</strong>), mean PR-AUC <strong>0.714</strong> (std <strong>0.082</strong>) — see <span class="mono">demand_inventory_24wk_stratified_kfold</span> in <span class="mono">classification_metrics_v2_ordertime.json</span>.</p>
+    </div>
+
+    <div class="section">
+      <h2>Comparing the three validations</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Split</th>
+            <th>What it tests</th>
+            <th>Logistic regression (headline)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Temporal (global)</td>
+            <td>Train on all orders before cutoff; test on later calendar period. Closest to “past → future” on full history.</td>
+            <td>F1 <strong>0.28</strong>, ROC-AUC <strong>0.85</strong>, PR-AUC <strong>0.19</strong> — sparse test positives (58).</td>
+          </tr>
+          <tr>
+            <td>Grouped</td>
+            <td>Hold out whole sales documents; train/test can overlap in time. Stress-tests document-level correlation.</td>
+            <td>F1 <strong>0.41</strong>, ROC-AUC <strong>0.84</strong>, PR-AUC <strong>0.31</strong> — more positives in test (197).</td>
+          </tr>
+          <tr>
+            <td>Recent 24-week</td>
+            <td>Only the last 24 weeks of data; then a second date cutoff inside that window. Matches “train on recent season only.”</td>
+            <td>ROC-AUC <strong>0.89</strong> for logistic, but threshold tuning on tiny train positives (24) yields <strong>no predicted positives</strong> on test → precision/recall/F1 read as 0. Too few events for stable threshold metrics.</td>
+          </tr>
+          <tr>
+            <td>v3 stratified 80/20</td>
+            <td>Recent order window + demand/WOC features; <strong>random</strong> stratified train/test (80/20). Stress-tests richer features and class balance mechanics, <em>not</em> strict time-forward generalization.</td>
+            <td>LightGBM F1 <strong>0.55</strong>, PR-AUC <strong>0.70</strong> on this holdout — useful for comparison; keep v2 temporal as the conservative production story.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="info-box">
+        <strong>Takeaway:</strong> The v2 24-week temporal slice is for <em>recency stress-testing</em> and ranking under a narrow regime. The v3 split is a <em>different question</em> (richer inputs, random stratified evaluation). Production narrative stays anchored on <strong>v2 temporal</strong> unless stakeholders explicitly accept the v3 assumptions.
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Cross-validation diagnostic (XGBoost, grouped folds)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Mean</th>
+            <th>Std</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>F1 (5 folds)</td>
+            <td>0.6242</td>
+            <td>0.0305</td>
+          </tr>
+          <tr>
+            <td>ROC-AUC</td>
+            <td>0.9625</td>
+            <td>0.0116</td>
+          </tr>
+          <tr>
+            <td>PR-AUC</td>
+            <td>0.6679</td>
+            <td>0.0318</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="info-box">
+        <strong>How to read this:</strong> Grouped CV shows stronger discrimination than the strict temporal tail because train and test periods overlap in calendar time. The temporal holdout is the conservative story for “forward” generalization in this dataset.
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Supporting tables (planning outputs)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Output</th>
+            <th>Description</th>
+            <th>Snapshot values</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="mono">demand_forecast_v2_ordertime.csv</span></td>
+            <td>Per material/plant/client: trailing <strong>12-week</strong> rolling mean of shipped quantity; last-as-of week retained.</td>
+            <td>648 distinct materials with a forecast row</td>
+          </tr>
+          <tr>
+            <td><span class="mono">excess_inventory_v2_ordertime.csv</span></td>
+            <td>Saleable inventory minus <strong>8×</strong> average weekly demand (from WOC pipeline); excess clipped at zero.</td>
+            <td>188 material/plant rows with excess &gt; 0</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Snapshot backorder comparison (OSQ vs saleable)</h2>
+      <p>
+        This block uses the same shortfall definition as common ERP backorder reporting, for <em>comparison only</em>: target <span class="mono">target_snapshot_backorder_risk</span> is 1 when max(0, outstanding quantity − saleable inventory) &gt; 0.
+        Dataset: <strong>52,118</strong> rows, overall positive rate ≈ <strong>10.3%</strong>. The four sklearn models use <strong>order-time predictors only</strong> (same KPI contract as v2); outstanding and saleable are <em>not</em> included in their feature matrix, so scores are genuine classification on this label rather than definitional leakage. OSQ/SI are still used for the two-feature logistic and the rule baseline. Production selection remains the order-time v2 temporal logistic above.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Split</th>
+            <th>Summary</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Temporal holdout</td>
+            <td>Cutoff <strong>2021-11-02</strong> · train 36,501 / test 15,534 · test positives <strong>50</strong> (≈ 0.32%)</td>
+          </tr>
+          <tr>
+            <td>Grouped holdout</td>
+            <td>Group <span class="mono">sales_document_number</span> · train 41,639 / test 10,479 · test positives <strong>1,039</strong> (≈ 9.9%)</td>
+          </tr>
+          <tr>
+            <td>Recent 24-week temporal</td>
+            <td>Anchor <strong>2022-04-25</strong> · window start <strong>2021-11-08</strong> · split <strong>2022-03-18</strong> · train 3,836 / test 11,686 · test positives <strong>16</strong></td>
+          </tr>
+        </tbody>
+      </table>
+      <table>
+        <thead>
+          <tr>
+            <th>Validation</th>
+            <th>Model</th>
+            <th>Accuracy</th>
+            <th>Precision</th>
+            <th>Recall</th>
+            <th>F1</th>
+            <th>ROC-AUC</th>
+            <th>PR-AUC</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td rowspan="6">Snapshot backorder temporal</td>
+            <td>Logistic regression</td>
+            <td>0.9798</td>
+            <td>0.1095</td>
+            <td>0.7400</td>
+            <td>0.1907</td>
+            <td>0.9740</td>
+            <td>0.2259</td>
+          </tr>
+          <tr>
+            <td>Random forest</td>
+            <td>0.9942</td>
+            <td>0.2674</td>
+            <td>0.4600</td>
+            <td>0.3382</td>
+            <td>0.8533</td>
+            <td>0.2074</td>
+          </tr>
+          <tr>
+            <td>XGBoost</td>
+            <td>0.9961</td>
+            <td>0.2917</td>
+            <td>0.1400</td>
+            <td>0.1892</td>
+            <td>0.9050</td>
+            <td>0.2243</td>
+          </tr>
+          <tr>
+            <td>LightGBM</td>
+            <td>0.9960</td>
+            <td>0.2692</td>
+            <td>0.1400</td>
+            <td>0.1842</td>
+            <td>0.8757</td>
+            <td>0.2222</td>
+          </tr>
+          <tr>
+            <td>OSQ+SI logistic (2 features)</td>
+            <td>0.9728</td>
+            <td>0.1057</td>
+            <td>1.0000</td>
+            <td>0.1912</td>
+            <td>0.9893</td>
+            <td>0.4278</td>
+          </tr>
+          <tr>
+            <td>Rule: outstanding &gt; saleable</td>
+            <td>1.0000</td>
+            <td>1.0000</td>
+            <td>1.0000</td>
+            <td>1.0000</td>
+            <td>—</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td rowspan="6">Snapshot backorder grouped</td>
+            <td>Logistic regression</td>
+            <td>0.9533</td>
+            <td>0.7495</td>
+            <td>0.7950</td>
+            <td>0.7716</td>
+            <td>0.9764</td>
+            <td>0.7962</td>
+          </tr>
+          <tr>
+            <td>Random forest</td>
+            <td>0.9502</td>
+            <td>0.6894</td>
+            <td>0.9057</td>
+            <td>0.7829</td>
+            <td>0.9812</td>
+            <td>0.8771</td>
+          </tr>
+          <tr>
+            <td>XGBoost</td>
+            <td>0.9666</td>
+            <td>0.8548</td>
+            <td>0.7988</td>
+            <td>0.8259</td>
+            <td>0.9876</td>
+            <td>0.9226</td>
+          </tr>
+          <tr>
+            <td>LightGBM</td>
+            <td>0.9675</td>
+            <td>0.8408</td>
+            <td>0.8287</td>
+            <td>0.8347</td>
+            <td>0.9902</td>
+            <td>0.9353</td>
+          </tr>
+          <tr>
+            <td>OSQ+SI logistic (2 features)</td>
+            <td>0.9272</td>
+            <td>0.5766</td>
+            <td>1.0000</td>
+            <td>0.7314</td>
+            <td>0.9612</td>
+            <td>0.6344</td>
+          </tr>
+          <tr>
+            <td>Rule: outstanding &gt; saleable</td>
+            <td>1.0000</td>
+            <td>1.0000</td>
+            <td>1.0000</td>
+            <td>1.0000</td>
+            <td>—</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td rowspan="6">Snapshot backorder recent 24-week</td>
+            <td>Logistic regression</td>
+            <td>0.9987</td>
+            <td>0.5714</td>
+            <td>0.2500</td>
+            <td>0.3478</td>
+            <td>0.8918</td>
+            <td>0.2934</td>
+          </tr>
+          <tr>
+            <td>Random forest</td>
+            <td>0.9986</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.8730</td>
+            <td>0.3308</td>
+          </tr>
+          <tr>
+            <td>XGBoost</td>
+            <td>0.9986</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.7651</td>
+            <td>0.2301</td>
+          </tr>
+          <tr>
+            <td>LightGBM</td>
+            <td>0.9986</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.7575</td>
+            <td>0.0085</td>
+          </tr>
+          <tr>
+            <td>OSQ+SI logistic (2 features)</td>
+            <td>0.9981</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.0000</td>
+            <td>0.9869</td>
+            <td>0.1301</td>
+          </tr>
+          <tr>
+            <td>Rule: outstanding &gt; saleable</td>
+            <td>1.0000</td>
+            <td>1.0000</td>
+            <td>1.0000</td>
+            <td>1.0000</td>
+            <td>—</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="info-box">
+        <strong>How to read this:</strong> Sklearn models (LR/RF/XGB/LGB) are trained on <strong>order-time features only</strong>, so their metrics reflect predictive signal for the snapshot shortfall label without feeding the label’s defining quantities. The <strong>two-feature logistic</strong> uses only OSQ and SI. The <strong>rule</strong> reproduces the label algebraically, so accuracy/F1 are tautological checks; ROC-AUC and PR-AUC are omitted in JSON (shown as — here). See <span class="mono">classification_metrics_v2_ordertime.json</span> keys <span class="mono">snapshot_backorder_*</span> and <span class="mono">metric_note</span> on the rule row.
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Interpretation</h2>
+      <div class="success-box">
+        <strong>Completion line:</strong> The capstone delivers a reproducible, leakage-aware binary risk model at order-line grain, honest temporal evaluation, secondary grouped metrics, and demand/excess tables for operational narrative.
+      </div>
+      <div class="warning-box">
+        <strong>Caveats for readers:</strong> High accuracy reflects class imbalance; prioritize PR-AUC, F1, and precision at the chosen threshold. Global temporal test positives are few; the 24-week slice is even sparser on the test tail — interpret its F1/precision literally as “thresholded predictions hit zero positives,” not as proof the model has no signal (see ROC-AUC). Re-running on refreshed data may shift numbers slightly.
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Reproducibility</h2>
+      <ul>
+        <li><span class="mono">python run_pipeline.py</span> — build processed master tables and BRD outputs (including <span class="mono">shipment_history.csv</span> when applicable).</li>
+        <li><span class="mono">python -m src.features.build_targets</span> — v2/v3/snapshot-backorder modeling CSVs and inventory targets.</li>
+        <li><span class="mono">python scripts/run_modeling.py</span> — train models, write <span class="mono">models/*.json</span>, <span class="mono">*.joblib</span> (v2 full fits + v3 best pipeline suffix <span class="mono">_v3_demand_inventory_24wk</span>), and figures under <span class="mono">output/</span>. Use <span class="mono">pip install -r requirements.txt</span> (includes <span class="mono">pyarrow</span>). Prefer a clean venv if Anaconda NumPy 2.x conflicts with SciPy/XGBoost.</li>
+        <li><span class="mono">python scripts/generate_model_performance_side_by_side_html.py</span> — refresh <span class="mono">docs/html/Model-Performance-SideBySide.html</span> after modeling.</li>
+        <li>PDF bundle (optional): <span class="mono">./html-to-pdf.sh --all</span> from project root.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Post-submission follow-ups (if time allows)</h2>
+      <ul>
+        <li>Multi-window temporal stress tests and a single frozen threshold table for the final poster.</li>
+        <li>Optional second stage: supervised regression or count models for <em>shortfall magnitude</em> at a defined grain, separate from the binary classifier.</li>
+        <li>Enrich order-time features (e.g. lagged demand aggregates) only with provably pre-order timestamps.</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

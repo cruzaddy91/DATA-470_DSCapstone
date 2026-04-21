@@ -1,5 +1,5 @@
 """
-Run the full data pipeline: core master tables + BRD metrics.
+Run the full data pipeline: core master tables, BRD metrics, and v2 modeling tables.
 
 Usage:
   python -m src.data.run_pipeline
@@ -10,7 +10,7 @@ Usage:
 Pipeline:
   1. build_master_tables  -> master_order_fulfillment, master_inventory_material, master_purchase
   2. build_brd_metrics    -> master_order_fulfillment_brd, shipment_history, master_woc
-  3. build_targets        -> master_order_fulfillment_with_targets, master_inventory_material_with_targets
+  3. build_targets        -> legacy snapshot targets + master_order_fulfillment_modeling_v2_ordertime
 """
 
 import sys
@@ -40,14 +40,15 @@ def main():
 
     print()
     print("=" * 60)
-    print("Pipeline Step 3: ML targets")
+    print("Pipeline Step 3: Targets and order-time modeling dataset")
     print("=" * 60)
     build_all_targets(project_root=_project_root)
 
     print()
     print("=" * 60)
     print("Pipeline complete. Outputs in data/processed/")
-    print("Next: run 02_modeling.ipynb or python scripts/run_modeling.py for ML.")
+    print("Official trainable table: master_order_fulfillment_modeling_v2_ordertime.csv")
+    print("Next: run python scripts/run_modeling.py for versioned v2 artifacts.")
     print("=" * 60)
 
 

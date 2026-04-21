@@ -1,0 +1,30 @@
+%% Capstone poster — panel 1 (EnableCV-style: TB + subgraphs + classDef)
+%% Compare: EnableCV PROD_Pipeline_Flow_Visualization.html (Complete PROD Pipeline Flow)
+
+flowchart TB
+  subgraph S1["Sources"]
+    SRC[("SAP / BigQuery<br/>Kaggle tables")]
+  end
+
+  subgraph S2["Integrate & label"]
+    ETL[ETL & integration]
+    GRAIN[Order-line grain<br/>31k+ labeled rows]
+  end
+
+  subgraph S3["Feature contract (v2)"]
+    FEAT[Order-time features<br/>13 + 7 missing flags]
+    DROP[23 post-order columns<br/>excluded — leakage guard]
+  end
+
+  SRC -->|raw extract| ETL
+  ETL -->|master / modeling set| GRAIN
+  GRAIN -->|engineer| FEAT
+  FEAT -->|enforce| DROP
+
+  classDef source fill:#cfd8dc,stroke:#546e7a,color:#212121
+  classDef pipeline fill:#ffecb3,stroke:#ff8f00,color:#212121
+  classDef process fill:#c8e6c9,stroke:#2e7d32,color:#212121
+
+  class SRC source
+  class ETL,GRAIN,FEAT pipeline
+  class DROP process

@@ -1,0 +1,40 @@
+%% Governed table / DDL change path (analogous to stg → edw → rpt layering in PROD docs)
+%% Not capstone-data-specific — reusable flow for “actual table changes”
+
+flowchart TB
+  subgraph D["Design"]
+    R[Change need<br/>column / table / view]
+    A[Author DDL + docs<br/>in version control]
+  end
+
+  subgraph I["Implement — non-PROD"]
+    RV[Code review]
+    DV[Deploy to DEV<br/>pool / warehouse]
+  end
+
+  subgraph Q["Quality gate"]
+    CK[Validation<br/>counts · deps · pipelines]
+    AP[Approval for PROD]
+  end
+
+  subgraph P["PROD"]
+    EX[Execute DDL / deploy<br/>in change window]
+    SM[Smoke tests & monitors]
+  end
+
+  R --> A
+  A --> RV
+  RV --> DV
+  DV --> CK
+  CK --> AP
+  AP --> EX
+  EX --> SM
+
+  classDef pipeline fill:#ffecb3,stroke:#ff8f00,color:#212121
+  classDef process fill:#c8e6c9,stroke:#2e7d32,color:#212121
+  classDef reporting fill:#f8bbd0,stroke:#c2185b,color:#212121
+
+  class R,A pipeline
+  class RV,DV,CK,AP process
+  class EX pipeline
+  class SM reporting

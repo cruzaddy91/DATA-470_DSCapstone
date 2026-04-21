@@ -48,7 +48,7 @@
       margin-bottom: 22px;
     }
 
-    .enablecv-brand {
+    .report-brand {
       display: flex;
       align-items: center;
       margin-bottom: 18px;
@@ -56,8 +56,8 @@
       border-bottom: 2px solid #e0e0e0;
     }
 
-    .enablecv-logo { max-width: 250px; height: auto; }
-    .enablecv-logo img { max-width: 100%; height: auto; }
+    .report-logo { max-width: 250px; height: auto; }
+    .report-logo img { max-width: 100%; height: auto; }
 
     .header h1 {
       color: var(--brand-blue);
@@ -226,9 +226,9 @@
 <body>
   <div class="container">
     <div class="header">
-      <div class="enablecv-brand">
-        <div class="enablecv-logo">
-          <img src="../../../assets/png/WU_Logo_Horz_Copper-2000x323-2602323276.png" alt="WashU" />
+      <div class="report-brand">
+        <div class="report-logo">
+          <img src="../../assets/png/WU_Logo_Horz_Copper-2000x323-2602323276.png" alt="WashU" />
         </div>
       </div>
       <h1>Progress Report Feb 19th</h1>
@@ -238,6 +238,7 @@
     <div class="meta-info">
       <p><strong>Purpose:</strong> Condensed progress report for professor review: clear pipeline summary, full modeling plan, sprint timeline, and closing reflections.</p>
       <p><strong>Scope:</strong> ETL summary, modeling plan, next steps, ultimate goal</p>
+      <p><strong>Schedule compliance (through Mar 6):</strong> Sprint 1–2 complete (ETL, EDA). Sprint 3 complete: logistic regression, XGBoost, LightGBM, class imbalance tuning. Sprint 4 started: Ridge/ElasticNet regression for backorder magnitude.</p>
     </div>
   </div>
 
@@ -248,7 +249,7 @@
       <p>Short, high-level overview of the data pipeline.</p>
 
       <div class="info-box">
-        <strong>What I Built:</strong> A two-phase ETL pipeline that turns SAP ERP clean CSVs into master tables and BRD-aligned metrics (backorders, weeks of coverage). Aligned with EnableCV BRD logic.
+        <strong>What I Built:</strong> A two-phase ETL pipeline that turns SAP ERP clean CSVs into master tables and BRD-aligned metrics (backorders, weeks of coverage). Aligned with the capstone BRD.
       </div>
 
       <div class="view-flow">

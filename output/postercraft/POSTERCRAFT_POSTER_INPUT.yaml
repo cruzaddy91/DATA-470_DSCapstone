@@ -1,0 +1,189 @@
+schema_version: 1
+generated_at_utc: '2026-04-20T23:41:22.237327+00:00'
+repository_root: /Users/addycruz/Workspace/DATA-470_DSCapstone
+purpose: PosterCraft full-poster aesthetic generation fed by pipeline outputs. Verbatim
+  metrics below are copied from CSV/JSON; chart images are matplotlib/seaborn exports—composite
+  those rasters, do not redraw plots or numbers in diffusion.
+authoritative_chart_rasters:
+- id: target_balance
+  relative_path: output/figures/target_balance_v2_ordertime.png
+  postercraft_instruction: Use this file as the figure layer for this panel; do not
+    regenerate plot geometry or labels.
+  sha256: 519bc6afdaffba8f6a6d1505b06d4c735bf26016b3e5df752441bbb34f73c5f0
+  role_on_poster: 'Left column: class balance strip chart'
+  generator_script: scripts/generate_target_balance.py
+- id: showcase_model_comparison_heatmap
+  relative_path: output/figures/showcase_model_comparison_heatmap.png
+  postercraft_instruction: Use this file as the figure layer for this panel; do not
+    regenerate plot geometry or labels.
+  sha256: 0f8d6bf2622fd10c1c78d36855266f329872502a8b07361cf6bf78ad57681bed
+  role_on_poster: 'Center: ROC-AUC / PR-AUC grids (Logistic vs LightGBM)'
+  generator_script: scripts/generate_showcase_metrics_visuals.py
+- id: diagram_sources_flow
+  relative_path: poster/diagrams/01_data_and_features.png
+  postercraft_instruction: Use this file as the figure layer for this panel; do not
+    regenerate plot geometry or labels.
+  sha256: d9c1208f19b37c7e924b4c0e96291371d365097435b534814079ba0ff7d58d96
+  role_on_poster: 'Center: Mermaid sources / feature contract'
+  generator_script: scripts/render_poster_diagrams.sh (mmd → png)
+- id: diagram_validation_flow
+  relative_path: poster/diagrams/02_validation_and_models.png
+  postercraft_instruction: Use this file as the figure layer for this panel; do not
+    regenerate plot geometry or labels.
+  sha256: d833c856397fbba03125a32962fdd92ee2aad99c61133f4c5f2bc71be6966829
+  role_on_poster: 'Center: Mermaid validation design'
+  generator_script: scripts/render_poster_diagrams.sh
+- id: confusion_matrices_temporal
+  relative_path: output/figures/classification_confusion_matrices_v2_ordertime.png
+  postercraft_instruction: Use this file as the figure layer for this panel; do not
+    regenerate plot geometry or labels.
+  sha256: 6152c41e9a24f5754f384b43523f867e49ac19791a8396775e50b2f901839484
+  role_on_poster: 'Right column: row-normalized confusion matrices'
+  generator_script: scripts/generate_poster_figures_v2.py → src/models/poster_figures_v2.py
+verbatim_numeric_summaries:
+  classification_model_comparison_and_heatmap:
+    source_csv: output/tables/classification_model_comparison_v2_ordertime.csv
+    roc_auc:
+      logistic_regression:
+        temporal_holdout: 0.8484396591739717
+        group_holdout: 0.8394496846843802
+      lightgbm:
+        temporal_holdout: 0.843645792761982
+        group_holdout: 0.957625450330186
+    pr_auc:
+      logistic_regression:
+        temporal_holdout: 0.1855736442502459
+        group_holdout: 0.3126145974693483
+      lightgbm:
+        temporal_holdout: 0.0824082378727997
+        group_holdout: 0.6116269447914717
+    models_shown:
+    - logistic_regression
+    - lightgbm
+    split_labels_ui:
+      temporal_holdout: 'Temporal
+
+        (primary)'
+      group_holdout: 'Grouped
+
+        (diagnostic)'
+    model_labels_ui:
+      logistic_regression: Logistic
+      lightgbm: LightGBM
+  temporal_holdout_scores_json:
+    source_json: models/temporal_holdout_test_scores_v2_ordertime.json
+    n_test: 6521
+    n_positive: 58
+    baseline_positive_rate: 0.008894341358687318
+    models:
+      logistic_regression:
+        decision_threshold: 0.8638293688157839
+        roc_auc: 0.8484396591739717
+        pr_auc: 0.18557364425024594
+        confusion_matrix_labels_order:
+        - actual_0_pred_0
+        - actual_0_pred_1
+        - actual_1_pred_0
+        - actual_1_pred_1
+        confusion_matrix_counts:
+        - 6435
+        - 28
+        - 53
+        - 5
+        confusion_matrix_2x2:
+        - - 6435
+          - 28
+        - - 53
+          - 5
+      lightgbm:
+        decision_threshold: 0.875354239464305
+        roc_auc: 0.843645792761982
+        pr_auc: 0.08240823787279977
+        confusion_matrix_labels_order:
+        - actual_0_pred_0
+        - actual_0_pred_1
+        - actual_1_pred_0
+        - actual_1_pred_1
+        confusion_matrix_counts:
+        - 6443
+        - 20
+        - 53
+        - 5
+        confusion_matrix_2x2:
+        - - 6443
+          - 20
+        - - 53
+          - 5
+paste_ready_prompt_addendum:
+  constraints_for_diffusion: PosterCraft may style the full poster. Do not generate
+    replacement data charts. Composite the authoritative PNG files listed under authoritative_chart_rasters
+    (and optional outputs) into the layout.
+  verbatim_block: "=== Verbatim metrics (copy exactly; do not invent values) ===\n\
+    Temporal holdout test: n_test=6521, n_positive=58, baseline_positive_rate=0.008894341358687318.\n\
+    ROC-AUC (from classification_model_comparison table):\n  Logistic: temporal_holdout=0.8484;\
+    \ group_holdout=0.8394\n  LightGBM: temporal_holdout=0.8436; group_holdout=0.9576\n\
+    PR-AUC (from classification_model_comparison table):\n  Logistic: temporal_holdout=0.1856;\
+    \ group_holdout=0.3126\n  LightGBM: temporal_holdout=0.0824; group_holdout=0.6116\n\
+    Temporal holdout (scores JSON), per model:\n  logistic_regression: roc_auc=0.8484396591739717,\
+    \ pr_auc=0.18557364425024594, decision_threshold=0.8638293688157839\n  lightgbm:\
+    \ roc_auc=0.843645792761982, pr_auc=0.08240823787279977, decision_threshold=0.875354239464305"
+optional_matplotlib_outputs:
+- relative_path: output/figures/roc_curves_temporal_v2_ordertime.png
+  sha256: 5225d68fabd1b0b815a0fee0dde8a9ec793a52433bb8aa5f54e72871635dd4d4
+  note: Optional/supporting matplotlib export if your PosterCraft layout includes
+    it.
+- relative_path: output/figures/pr_curves_temporal_v2_ordertime.png
+  sha256: 689e8b8b73cdff86e0c8d5bfc6e4ec2ca88b260a3f99b439843576070177b894
+  note: Optional/supporting matplotlib export if your PosterCraft layout includes
+    it.
+- relative_path: output/figures/temporal_positive_rate_drift_v2_ordertime.png
+  sha256: fce75d87e3ba6f188ecae503003f821ffaedbf3f3f91f6bb01b2a69b092f8e1d
+  note: Optional/supporting matplotlib export if your PosterCraft layout includes
+    it.
+- relative_path: output/figures/score_distribution_temporal_v2_ordertime.png
+  sha256: dee3825eaccc8cf49972cd2317d13d053893db5c221e6b7d979b3829f79b9cab
+  note: Optional/supporting matplotlib export if your PosterCraft layout includes
+    it.
+- relative_path: output/figures/classification_feature_importance_v2_ordertime.png
+  sha256: 506e60ac86523570fed8c20b0927812db2c7729364a0218c8d2e507a76024072
+  note: Optional/supporting matplotlib export if your PosterCraft layout includes
+    it.
+supplemental_figures_not_on_main_poster:
+  showcase_temporal_snapshot: output/figures/showcase_temporal_snapshot.png
+  note: Generated alongside heatmap script; not placed in build_poster.py center column
+    by default.
+linked_manifest_relative: output/figures/POSTER_VISUAL_MANIFEST.json
+postercraft_reference:
+  citation: 'Chen et al., PosterCraft: Rethinking High-Quality Aesthetic Poster Generation,
+    arXiv:2506.10741'
+  project_page: https://ephemeral182.github.io/PosterCraft/
+  code: https://github.com/Ephemeral182/PosterCraft
+  what_it_is: A diffusion-based text-to-image pipeline (FLUX + fine-tuned weights)
+    for aesthetic full-poster generation from prompts.
+  policy_for_this_capstone: Chart rasters (heatmaps, confusion matrices, ROC/PR, etc.)
+    are exported from matplotlib/seaborn from versioned CSV/JSON. PosterCraft is used
+    for the full-poster aesthetic; prompts should paste verbatim metrics from POSTERCRAFT_POSTER_INPUT.yaml
+    (generated with this manifest). Composite the listed PNG paths into the layout—do
+    not ask diffusion to redraw plots or numeric labels. This manifest remains the
+    source of truth for file paths and hashes.
+mermaid_diagrams:
+  01_data_and_features.mmd:
+    mermaid_relative: poster/diagrams/01_data_and_features.mmd
+    png_relative: poster/diagrams/01_data_and_features.png
+    mmd_sha256: 2bda60ea2ba145b7e635e38fc39f431cc4921be5a195070dd396df54de61fbf2
+    png_sha256: d9c1208f19b37c7e924b4c0e96291371d365097435b534814079ba0ff7d58d96
+  02_validation_and_models.mmd:
+    mermaid_relative: poster/diagrams/02_validation_and_models.mmd
+    png_relative: poster/diagrams/02_validation_and_models.png
+    mmd_sha256: f97d762ab5a16dfe20f427468dc43f6f4d902716452661d93d78c813eaaff56e
+    png_sha256: d833c856397fbba03125a32962fdd92ee2aad99c61133f4c5f2bc71be6966829
+  03_table_change_flow.mmd:
+    mermaid_relative: poster/diagrams/03_table_change_flow.mmd
+    png_relative: poster/diagrams/03_table_change_flow.png
+    mmd_sha256: 221c8015d84f1002fa40e4225516228d2d80b513f4ab412764e23e4b2aae6c93
+    png_sha256: ed5128ab46c7df5b4934314ca758122be4d208264c28b06f56496a48a2a27779
+deck:
+  builder: build_poster.py
+  template: Showcase Templates.pptx
+  output_pptx_relative: DS_Capstone_Poster_FINAL.pptx
+  pptx_sha256: 86512f3c76d68192e187c861162c88f596dd226ebeb531931d56afd67212ded3
