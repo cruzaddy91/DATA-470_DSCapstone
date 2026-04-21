@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
 # Regenerate poster PNGs (when inputs exist) + PowerPoint + font check.
+#
+# Dependency order (each step consumes outputs of the prior):
+#   1. build_canonical_poster_visual_spec.py — YAML from master CSV, comparison table, temporal JSON
+#   2. render_poster_visuals_from_canonical_spec.py — matplotlib PNGs into output/figures/
+#   3. render_poster_diagrams.sh — poster/diagrams/*.mmd → *.png (Mermaid CLI)
+#   4. build_poster.py — embeds those PNGs into DS_Capstone_Poster_FINAL.pptx (strips stale body pictures first)
+#   5. generate_poster_visual_manifest.py + export_postercraft_poster_inputs.py — manifests
+#   6. verify_poster_fonts.py + verify_poster_layout.py
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -41,7 +49,7 @@ if [[ -f "data/processed/master_order_fulfillment_modeling_v2_ordertime.csv" \
       "$PY" scripts/generate_poster_figures_v2.py
     fi
   else
-    echo "== Template renders (Seaborn/mako from canonical_poster_visual_spec.yaml) =="
+    echo "== Template renders (Westminster palette from canonical_poster_visual_spec.yaml) =="
     "$PY" scripts/render_poster_visuals_from_canonical_spec.py
   fi
 else
@@ -74,3 +82,8 @@ echo "== Layout guardrail (heading vs body boxes) =="
 "$PPT_PY" scripts/verify_poster_layout.py
 
 echo "Done: $ROOT/DS_Capstone_Poster_FINAL.pptx"
+
+# Open the deck on macOS after a successful build (set OPEN_POSTER_AFTER_BUILD=0 to skip).
+if [[ "${OPEN_POSTER_AFTER_BUILD:-1}" == "1" ]] && command -v open >/dev/null 2>&1; then
+  open "$ROOT/DS_Capstone_Poster_FINAL.pptx" || true
+fi

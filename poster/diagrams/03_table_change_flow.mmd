@@ -1,5 +1,5 @@
-%% Governed table / DDL change path (analogous to stg → edw → rpt layering in PROD docs)
-%% Not capstone-data-specific — reusable flow for “actual table changes”
+%% Governed table / DDL change path (Westminster brand)
+%%{init: {'theme': 'base', 'flowchart': {'htmlLabels': true}}}%%
 
 flowchart TB
   subgraph D["Design"]
@@ -30,10 +30,9 @@ flowchart TB
   AP --> EX
   EX --> SM
 
-  %% Westminster brand (see westminster_poster_palette.py)
-  classDef pipeline fill:#F5EBE0,stroke:#9D581F,color:#101820
-  classDef process fill:#EDE5F7,stroke:#9063CD,color:#101820
-  classDef reporting fill:#E8E4EF,stroke:#211551,color:#101820
+  classDef pipeline fill:#FFFFFF,stroke:#9D581F,color:#101820
+  classDef process fill:#F1F1DE,stroke:#211551,color:#101820
+  classDef reporting fill:#EDE5F7,stroke:#8252C7,color:#101820
 
   class R,A pipeline
   class RV,DV,CK,AP process

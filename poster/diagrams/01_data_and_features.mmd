@@ -1,5 +1,5 @@
-%% Capstone poster — panel 1 (EnableCV-style: TB + subgraphs + classDef)
-%% Compare: EnableCV PROD_Pipeline_Flow_Visualization.html (Complete PROD Pipeline Flow)
+%% Capstone poster — panel 1 (Westminster brand classDef; see westminster_poster_palette.py)
+%%{init: {'theme': 'base', 'flowchart': {'htmlLabels': true}}}%%
 
 flowchart TB
   subgraph S1["Sources"]
@@ -21,11 +21,13 @@ flowchart TB
   GRAIN -->|engineer| FEAT
   FEAT -->|enforce| DROP
 
-  %% Westminster brand: Night, Copper, Sky, Birch, Thistle (see westminster_poster_palette.py)
-  classDef source fill:#E0F4FA,stroke:#00B5E2,color:#101820
-  classDef pipeline fill:#F5EBE0,stroke:#9D581F,color:#101820
-  classDef process fill:#EDE5F7,stroke:#9063CD,color:#101820
+  %% Night #211551, Copper #9D581F, Thistle #8252C7, Sky #00B5E2, Birch #F1F1DE, Flint #101820, Snow #FFFFFF
+  classDef source fill:#F1F1DE,stroke:#211551,color:#101820
+  classDef pipeline fill:#FFFFFF,stroke:#9D581F,color:#101820
+  classDef process fill:#EDE5F7,stroke:#8252C7,color:#101820
+  classDef skyline fill:#E0F4FA,stroke:#00B5E2,color:#101820
 
   class SRC source
-  class ETL,GRAIN,FEAT pipeline
+  class ETL,FEAT pipeline
+  class GRAIN skyline
   class DROP process

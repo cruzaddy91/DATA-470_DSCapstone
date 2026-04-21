@@ -1,5 +1,5 @@
 schema_version: 1
-generated_at_utc: '2026-04-21T16:41:00.539099+00:00'
+generated_at_utc: '2026-04-21T22:19:21.659214+00:00'
 repository_root: /Users/addycruz/Workspace/DATA-470_DSCapstone
 purpose: PosterCraft full-poster aesthetic generation fed by pipeline outputs. Verbatim
   metrics below are copied from CSV/JSON; chart images are matplotlib/seaborn exports—composite
@@ -9,37 +9,40 @@ authoritative_chart_rasters:
   relative_path: output/figures/target_balance_v2_ordertime.png
   postercraft_instruction: Use this file as the figure layer for this panel; do not
     regenerate plot geometry or labels.
-  sha256: eb8eb47f45afa697e5f81cc3b1ffc70c7b97bfba818b1805f454b710b5993e06
+  sha256: 141669901a43b5004db87f1e6fdd96e9ebdb5efa23a37551f3660f929cc40653
   role_on_poster: 'Left column: class balance strip chart'
-  generator_script: scripts/generate_target_balance.py
+  generator_script: 'scripts/build_canonical_poster_visual_spec.py → scripts/render_poster_visuals_from_canonical_spec.py
+    (fallback: scripts/generate_target_balance.py)'
 - id: showcase_model_comparison_heatmap
   relative_path: output/figures/showcase_model_comparison_heatmap.png
   postercraft_instruction: Use this file as the figure layer for this panel; do not
     regenerate plot geometry or labels.
-  sha256: 4ad2cdf12abf20483cc63c3cb0c545a6299bed7b7368cd4cb93173bf66dc6385
+  sha256: e696fefd0c8a6d1749d11b78bbbca606123ec8246d0a93ee39f2c1da861d330c
   role_on_poster: 'Center: ROC-AUC / PR-AUC grids (Logistic vs LightGBM)'
-  generator_script: scripts/generate_showcase_metrics_visuals.py
+  generator_script: 'scripts/build_canonical_poster_visual_spec.py → scripts/render_poster_visuals_from_canonical_spec.py
+    (fallback: scripts/generate_showcase_metrics_visuals.py)'
 - id: diagram_sources_flow
   relative_path: poster/diagrams/01_data_and_features.png
   postercraft_instruction: Use this file as the figure layer for this panel; do not
     regenerate plot geometry or labels.
-  sha256: d9c1208f19b37c7e924b4c0e96291371d365097435b534814079ba0ff7d58d96
+  sha256: 9ff8ff70428c23da0936d3bff766ba4cc9fe6b457ea933ac42f3534f8032046d
   role_on_poster: 'Center: Mermaid sources / feature contract'
   generator_script: scripts/render_poster_diagrams.sh (mmd → png)
 - id: diagram_validation_flow
   relative_path: poster/diagrams/02_validation_and_models.png
   postercraft_instruction: Use this file as the figure layer for this panel; do not
     regenerate plot geometry or labels.
-  sha256: d833c856397fbba03125a32962fdd92ee2aad99c61133f4c5f2bc71be6966829
+  sha256: 8850b23e9e8252e2b4b5cbce4a7f6ff6122f480871b2d1a5639db802a99f65f6
   role_on_poster: 'Center: Mermaid validation design'
   generator_script: scripts/render_poster_diagrams.sh
 - id: confusion_matrices_temporal
   relative_path: output/figures/classification_confusion_matrices_v2_ordertime.png
   postercraft_instruction: Use this file as the figure layer for this panel; do not
     regenerate plot geometry or labels.
-  sha256: ab09222bd4d2db057b9d0e3d6ba68da45e813ecf8dba8295899a703ce812461f
+  sha256: e2c138b4e69162edc55e2ba0ea09882c99c6523d01b22a66e6073765869434f6
   role_on_poster: 'Right column: row-normalized confusion matrices'
-  generator_script: scripts/generate_poster_figures_v2.py → src/models/poster_figures_v2.py
+  generator_script: 'scripts/build_canonical_poster_visual_spec.py → scripts/render_poster_visuals_from_canonical_spec.py
+    (fallback: scripts/generate_poster_figures_v2.py → src/models/poster_figures_v2.py)'
 verbatim_numeric_summaries:
   classification_model_comparison_and_heatmap:
     source_csv: output/tables/classification_model_comparison_v2_ordertime.csv
@@ -129,19 +132,19 @@ paste_ready_prompt_addendum:
     \ roc_auc=0.843645792761982, pr_auc=0.08240823787279977, decision_threshold=0.875354239464305"
 optional_matplotlib_outputs:
 - relative_path: output/figures/roc_curves_temporal_v2_ordertime.png
-  sha256: 121cee0bcb0e26afd6e8b3745e110203fe690b3f0cf15edbfdb5996084cc8e8e
+  sha256: 996eff481e9c5cc0ce6ad992d5b91b18c2cbf5607b4a442fd7ad6096f4e6a60c
   note: Optional/supporting matplotlib export if your PosterCraft layout includes
     it.
 - relative_path: output/figures/pr_curves_temporal_v2_ordertime.png
-  sha256: 81eafbaed599e2fa3f2298e7c53f3cc7929f0df4fc06ef06a6e66a5c18cd1abd
+  sha256: dea8f7d5c93bb2893b2e4b8caa8c0a9b05414d8e786f1c86846a1f70050945fb
   note: Optional/supporting matplotlib export if your PosterCraft layout includes
     it.
 - relative_path: output/figures/temporal_positive_rate_drift_v2_ordertime.png
-  sha256: 3ccadb281ea33db4ef35e2d0b22ca4aee29aa7af48bcbb6f97f3b5ecca535e5e
+  sha256: 9b71c7b24a27ed413a1544bc6e5bb2c22e757fafbf699cbfc0c58264966d6a8a
   note: Optional/supporting matplotlib export if your PosterCraft layout includes
     it.
 - relative_path: output/figures/score_distribution_temporal_v2_ordertime.png
-  sha256: 203841875434d79c53b3c0863ea3a117d464a6cef44d80cec2bf9c3bf6cf76a1
+  sha256: 513a8df39e1a178f36374fc4f2a35f3d61d2ca7b4f935030106d427919413844
   note: Optional/supporting matplotlib export if your PosterCraft layout includes
     it.
 - relative_path: output/figures/classification_feature_importance_v2_ordertime.png
@@ -153,6 +156,7 @@ supplemental_figures_not_on_main_poster:
   note: Generated alongside heatmap script; not placed in build_poster.py center column
     by default.
 linked_manifest_relative: output/figures/POSTER_VISUAL_MANIFEST.json
+linked_canonical_visual_spec_relative: output/poster_visual_spec/canonical_poster_visual_spec.yaml
 postercraft_reference:
   citation: 'Chen et al., PosterCraft: Rethinking High-Quality Aesthetic Poster Generation,
     arXiv:2506.10741'
@@ -170,20 +174,20 @@ mermaid_diagrams:
   01_data_and_features.mmd:
     mermaid_relative: poster/diagrams/01_data_and_features.mmd
     png_relative: poster/diagrams/01_data_and_features.png
-    mmd_sha256: 2bda60ea2ba145b7e635e38fc39f431cc4921be5a195070dd396df54de61fbf2
-    png_sha256: d9c1208f19b37c7e924b4c0e96291371d365097435b534814079ba0ff7d58d96
+    mmd_sha256: b93fae8f97dff5705c09726c822a634518bff2f6d7d83d76aa0a98acb51c88bd
+    png_sha256: 9ff8ff70428c23da0936d3bff766ba4cc9fe6b457ea933ac42f3534f8032046d
   02_validation_and_models.mmd:
     mermaid_relative: poster/diagrams/02_validation_and_models.mmd
     png_relative: poster/diagrams/02_validation_and_models.png
-    mmd_sha256: f97d762ab5a16dfe20f427468dc43f6f4d902716452661d93d78c813eaaff56e
-    png_sha256: d833c856397fbba03125a32962fdd92ee2aad99c61133f4c5f2bc71be6966829
+    mmd_sha256: 4c949e9d54213e71e3dfb5e3996b79ccec594050415f6a146409d7397596a27c
+    png_sha256: 8850b23e9e8252e2b4b5cbce4a7f6ff6122f480871b2d1a5639db802a99f65f6
   03_table_change_flow.mmd:
     mermaid_relative: poster/diagrams/03_table_change_flow.mmd
     png_relative: poster/diagrams/03_table_change_flow.png
-    mmd_sha256: 221c8015d84f1002fa40e4225516228d2d80b513f4ab412764e23e4b2aae6c93
-    png_sha256: ed5128ab46c7df5b4934314ca758122be4d208264c28b06f56496a48a2a27779
+    mmd_sha256: 55036466f87f97b623af4992aa37a3b3fb5146896a57dd9272a48c5a42e2431f
+    png_sha256: 7af308a6cee6caea44d0c502a09878501a43218222b67baaa1334be42b537792
 deck:
   builder: build_poster.py
   template: Showcase Templates.pptx
   output_pptx_relative: DS_Capstone_Poster_FINAL.pptx
-  pptx_sha256: 67c4e97b4933f3a54b4c269ef200cc37faf01541d402f5b5a1b219a420020cf3
+  pptx_sha256: b761e4f1ac5ee67fd20e72fd0540465095f1f3051d6f3b9807cb3c53ceefd5de

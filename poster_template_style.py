@@ -17,13 +17,13 @@ def apply_poster_template_style() -> None:
     import matplotlib.pyplot as plt
     import seaborn as sns
 
-    from westminster_poster_palette import BIRCH, COPPER, FLINT, NIGHT, THISTLE
+    from westminster_poster_palette import BIRCH, COPPER, FLINT, NIGHT, SKY, THISTLE
 
     sns.set_theme(
         style="ticks",
         context="talk",
         font=_TEMPLATE_FONT,
-        palette=[NIGHT, COPPER, THISTLE],
+        palette=[NIGHT, COPPER, THISTLE, SKY],
     )
     plt.rcParams.update(
         {

@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
@@ -29,9 +30,12 @@ from westminster_poster_palette import (
     COLOR_LOGISTIC,
     EDGE_SUBTLE,
     FLINT,
+    SNOW,
     HIST_MAJORITY,
     HIST_MINORITY,
     NIGHT,
+    SKY,
+    THISTLE,
     TINT_CARD_A,
     TINT_CARD_B,
     TINT_CARD_C,
@@ -39,6 +43,18 @@ from westminster_poster_palette import (
     TINT_HEADER,
     brand_confusion_heatmap_cmap,
 )
+
+def _annot_text_color(val: float, vmin: float, vmax: float, cmap_obj) -> str:
+    """White text on dark cells, dark text on light cells (WCAG-style luminance)."""
+    if vmax <= vmin:
+        return FLINT
+    t = (float(val) - vmin) / (vmax - vmin)
+    t = max(0.0, min(1.0, t))
+    rgba = cmap_obj(t)
+    rgb = mcolors.to_rgb(rgba)
+    lum = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
+    return SNOW if lum < 0.48 else FLINT
+
 
 FIG_FILES = {
     "target_balance": "target_balance_v2_ordertime.png",
@@ -151,17 +167,32 @@ def render_model_comparison_heatmap(spec: dict, root: Path) -> Path | None:
         sns.heatmap(
             metric_frame,
             ax=ax,
-            annot=True,
-            fmt=".2f",
+            annot=False,
             cmap=cmap,
             vmin=vmin_m,
             vmax=vmax_m,
             linewidths=2.0,
-            linecolor="white",
+            linecolor=SNOW,
             cbar=True,
             cbar_kws={"shrink": 0.72, "pad": 0.02, "label": cbar_label},
-            annot_kws={"fontsize": 17, "fontweight": "bold", "color": FLINT},
         )
+        nrows, ncols = metric_frame.shape
+        for i in range(nrows):
+            for j in range(ncols):
+                val = float(metric_frame.iloc[i, j])
+                if np.isnan(val):
+                    continue
+                tc = _annot_text_color(val, vmin_m, vmax_m, cmap)
+                ax.text(
+                    j + 0.5,
+                    i + 0.5,
+                    f"{val:.2f}",
+                    ha="center",
+                    va="center",
+                    fontsize=17,
+                    fontweight="bold",
+                    color=tc,
+                )
         for col_idx, col_name in enumerate(metric_frame.columns):
             best_row = metric_frame[col_name].astype(float).idxmax()
             row_idx = metric_frame.index.get_loc(best_row)
@@ -185,7 +216,7 @@ def render_model_comparison_heatmap(spec: dict, root: Path) -> Path | None:
         0.5,
         0.02,
         "Values from canonical_poster_visual_spec.yaml (classification_model_comparison_v2_ordertime.csv). "
-        "Black outline = best in column.",
+        "Night outline = best in column.",
         ha="center",
         va="bottom",
         fontsize=10,
@@ -218,7 +249,15 @@ def render_temporal_figures(spec: dict, root: Path) -> dict[str, Path]:
 
     # ROC
     fig, ax = plt.subplots(figsize=(7, 6))
-    ax.plot([0, 1], [0, 1], linestyle="--", color=COLOR_BASELINE, linewidth=1.5, label="Random classifier")
+    ax.plot(
+        [0, 1],
+        [0, 1],
+        linestyle="--",
+        color=COLOR_BASELINE,
+        linewidth=1.5,
+        alpha=0.45,
+        label="Random classifier",
+    )
     for name, color, label_short in (
         ("logistic_regression", COLOR_LOGISTIC, "Logistic"),
         ("lightgbm", COLOR_LIGHTGBM, "LightGBM"),
@@ -249,6 +288,7 @@ def render_temporal_figures(spec: dict, root: Path) -> dict[str, Path]:
         color=COLOR_BASELINE,
         linestyle="--",
         linewidth=1.5,
+        alpha=0.45,
         label=f"Baseline positive rate ({baseline_rate * 100:.2f}%)",
     )
     for name, color, label_short in (
@@ -285,13 +325,30 @@ def render_temporal_figures(spec: dict, root: Path) -> dict[str, Path]:
                 rates = [float(row["positive_rate"]) * 100.0 for row in monthly]
                 fig, ax = plt.subplots(figsize=(9, 4.5))
                 x = range(len(months))
-                ax.plot(x, rates, color=COLOR_LOGISTIC, linewidth=2, marker="o", markersize=5)
+                ax.plot(
+                    x,
+                    rates,
+                    color=THISTLE,
+                    linewidth=2.4,
+                    marker="o",
+                    markersize=5,
+                    markerfacecolor=SKY,
+                    markeredgecolor=NIGHT,
+                    markeredgewidth=0.9,
+                )
                 ax.set_xticks(list(x))
                 ax.set_xticklabels(months, rotation=45, ha="right")
                 ax.set_ylabel("Positive rate (%)")
                 ax.set_xlabel("Order month")
                 ax.set_title("Temporal drift — positive rate by month (template)")
-                ax.axhline(baseline_rate * 100.0, color=COLOR_BASELINE, linestyle="--", label="Temporal test mean")
+                ax.axhline(
+                    baseline_rate * 100.0,
+                    color=COLOR_BASELINE,
+                    linestyle="--",
+                    linewidth=1.5,
+                    alpha=0.45,
+                    label="Temporal test mean",
+                )
                 ax.legend()
                 sns.despine()
                 fig.tight_layout()
@@ -338,15 +395,30 @@ def render_temporal_figures(spec: dict, root: Path) -> dict[str, Path]:
             cm_rn = np.nan_to_num(cm_rn)
         sns.heatmap(
             cm_rn,
-            annot=True,
-            fmt=".2f",
+            annot=False,
             cmap=cmap_cm,
             vmin=0,
             vmax=1,
             ax=ax,
             xticklabels=["Pred 0", "Pred 1"],
             yticklabels=["Act 0", "Act 1"],
+            linewidths=1.0,
+            linecolor=SNOW,
         )
+        for i in range(cm_rn.shape[0]):
+            for j in range(cm_rn.shape[1]):
+                val = float(cm_rn[i, j])
+                tc = _annot_text_color(val, 0.0, 1.0, cmap_cm)
+                ax.text(
+                    j + 0.5,
+                    i + 0.5,
+                    f"{val:.2f}",
+                    ha="center",
+                    va="center",
+                    fontsize=15,
+                    fontweight="bold",
+                    color=tc,
+                )
         ax.set_title(f"{label_short} (row-normalized)")
     plt.suptitle("Confusion matrices — temporal holdout (template)", y=1.02)
     fig.tight_layout()

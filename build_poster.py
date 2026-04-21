@@ -1,4 +1,8 @@
-"""Build the capstone poster from the Westminster template."""
+"""Build the capstone poster from the Westminster template.
+
+Formatting constants and copy are aligned with ``DS_Capstone_Poster_FINAL.pptx`` (the deck is the
+source of truth). Re-run after hand-edits and update this file if the artifact drifts.
+"""
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
 from pptx.dml.color import RGBColor
@@ -20,20 +24,35 @@ DIAGRAM_DIR = "poster/diagrams"
 
 # Single font for entire poster (serif; ensure template/theme does not override in PowerPoint)
 FONT = "Times New Roman"
-# Type scale — larger body copy to use column height; keep heatmaps/diagrams sized separately
+# Type scale — kept in sync with the latest DS_Capstone_Poster_FINAL.pptx (poster is source of truth).
+BLACK = RGBColor(0x00, 0x00, 0x00)
+WHITE = RGBColor(0xFF, 0xFF, 0xFF)  # title bar meta lines on purple band
+
 SZ_TITLE_MAIN = 56
-SZ_TITLE_NAME = 36
-SZ_TITLE_META = 30
-# Section titles: keep modest so long headings do not overflow into body boxes (see nudge below)
-SZ_SECTION = 36
-SZ_BODY = 27
-SZ_BODY_DENSE = 26
-SZ_SUBHEAD = 32
-SZ_CAPTION = 28
-SZ_FOOTNOTE = 24
-SZ_DATA_SOURCE = 22
-SZ_MODEL_SUBHEAD = 28
-SZ_MODEL_BODY = 25
+SZ_TITLE_TAGLINE = 32
+SZ_TITLE_NAME = 40
+SZ_TITLE_ADVISOR = 40
+SZ_TITLE_META_LINE = 32  # school line
+
+# Section heading boxes (TextBox 17–22): centered, uniform inset via set_heading()
+SZ_SECTION = 48
+
+SZ_BOX1_BODY = 40  # Problem column (TextBox 23)
+SZ_BODY = 32  # Data & Scope (TextBox 24)
+
+SZ_MODEL_SUBHEAD = 32  # centered “Baseline…” / “Validation…” + colon runs (TextBox 25)
+SZ_MODEL_BODY = 28
+
+SZ_RESULTS_CAPTION = 40  # Evidence line (TextBox 26)
+
+SZ_TAKEAWAY_BODY = 36  # Key findings (TextBox 27)
+
+SZ_LIMIT_HEAD = 44  # Limitations / boosting / Future Work (TextBox 28)
+SZ_LIMIT_BODY = 36
+SZ_DATA_SOURCE_LABEL = 24
+SZ_DATA_SOURCE_DETAIL = 24
+
+SZ_PIPELINE_ARCH = 40  # TextBox 2 (if present on template)
 
 # Layout (914400 EMU = 1 in). Poster slide is 44" × 36".
 GAP_SM = Emu(120000)
@@ -41,8 +60,14 @@ GAP_MD = Emu(220000)
 # Vertical reserve under Results caption before heatmap (long caption safe at SZ_CAPTION)
 CAPTION_LINE = Emu(640000)
 LABEL_ABOVE = Emu(360000)
-# Tighter in-box padding so text uses width/height of template boxes
+# Text frame padding (body boxes use slightly tighter horizontal padding to fill width)
 MARGIN_TF = Emu(36000)
+MARGIN_BODY_TF = Emu(22000)
+# Same top/side inset for every section heading box (centers text consistently)
+HEADING_MARGIN_TOP = Emu(48000)
+HEADING_MARGIN_SIDE = Emu(56000)
+HEADING_MARGIN_BOTTOM = Emu(24000)
+BODY_LINE_SPACING = 1.14
 
 prs = Presentation(TEMPLATE)
 slide = prs.slides[0]  # Slide 1: 3-column, 6 headings, with logos
@@ -88,13 +113,14 @@ def iter_leaf_shapes(shapes):
             yield shape
 
 
-def apply_text_frame_layout(tf) -> None:
+def apply_text_frame_layout(tf, *, margins: Emu | None = None) -> None:
     """Reduce default padding and anchor text to top so copy fills template boxes."""
+    m = margins if margins is not None else MARGIN_TF
     tf.word_wrap = True
-    tf.margin_left = MARGIN_TF
-    tf.margin_right = MARGIN_TF
-    tf.margin_top = MARGIN_TF
-    tf.margin_bottom = MARGIN_TF
+    tf.margin_left = m
+    tf.margin_right = m
+    tf.margin_top = m
+    tf.margin_bottom = m
     try:
         tf.vertical_anchor = MSO_VERTICAL_ANCHOR.TOP
     except Exception:
@@ -103,6 +129,11 @@ def apply_text_frame_layout(tf) -> None:
         tf.auto_size = MSO_AUTO_SIZE.NONE
     except Exception:
         pass
+
+
+def apply_body_text_frame_layout(tf) -> None:
+    """Body boxes: tighter margins so paragraphs use full width; top-anchored."""
+    apply_text_frame_layout(tf, margins=MARGIN_BODY_TF)
 
 
 def enforce_font_on_all_text(slide, font_name: str) -> None:
@@ -116,18 +147,31 @@ def enforce_font_on_all_text(slide, font_name: str) -> None:
                 run.font.name = font_name
 
 
-def set_heading(shape, text, size=None, color=RGBColor(0x1B, 0x3A, 0x5C)):
-    """Section title only — no unicode rule line (it overlapped heading text in PowerPoint)."""
+def set_heading(shape, text, size=None, color=BLACK):
+    """Section title: single centered line, uniform inset from top of heading shape (see margins below)."""
     if size is None:
         size = SZ_SECTION
     tf = shape.text_frame
     tf.clear()
-    apply_text_frame_layout(tf)
+    tf.word_wrap = True
+    tf.margin_top = HEADING_MARGIN_TOP
+    tf.margin_bottom = HEADING_MARGIN_BOTTOM
+    tf.margin_left = HEADING_MARGIN_SIDE
+    tf.margin_right = HEADING_MARGIN_SIDE
+    try:
+        tf.vertical_anchor = MSO_VERTICAL_ANCHOR.TOP
+    except Exception:
+        pass
+    try:
+        tf.auto_size = MSO_AUTO_SIZE.NONE
+    except Exception:
+        pass
     p = tf.paragraphs[0]
-    p.space_after = Pt(6)
-    p.alignment = PP_ALIGN.LEFT
+    p.space_before = Pt(0)
+    p.space_after = Pt(0)
+    p.alignment = PP_ALIGN.CENTER
     run = p.add_run()
-    run.text = text.upper()
+    run.text = text
     run.font.size = Pt(size)
     run.font.bold = True
     run.font.color.rgb = color
@@ -177,6 +221,67 @@ def add_paragraph(
     return p
 
 BODY_COLOR = RGBColor(0x33, 0x33, 0x33)
+DARK_BLUE = RGBColor(0x1B, 0x3A, 0x5C)
+
+
+def _style_run(run, *, size_pt: int, bold: bool, color) -> None:
+    run.font.size = Pt(size_pt)
+    run.font.bold = bold
+    if color is not None:
+        run.font.color.rgb = color
+    run.font.name = FONT
+
+
+def set_first_colon_heading(
+    tf,
+    label_without_colon: str,
+    *,
+    size_pt: int,
+    space_before=Pt(0),
+    space_after=Pt(6),
+    align=PP_ALIGN.CENTER,
+) -> None:
+    """Bold dark-blue heading as label + ':' in separate runs (matches hand-edited PPTX)."""
+    p = tf.paragraphs[0]
+    p.alignment = align
+    p.space_before = space_before
+    p.space_after = space_after
+    try:
+        p.line_spacing = BODY_LINE_SPACING
+    except Exception:
+        pass
+    r1 = p.add_run()
+    r1.text = label_without_colon
+    _style_run(r1, size_pt=size_pt, bold=True, color=DARK_BLUE)
+    r2 = p.add_run()
+    r2.text = ":"
+    _style_run(r2, size_pt=size_pt, bold=True, color=DARK_BLUE)
+
+
+def add_colon_heading_paragraph(
+    tf,
+    label_without_colon: str,
+    *,
+    size_pt: int,
+    space_before=Pt(8),
+    space_after=Pt(6),
+    align=PP_ALIGN.CENTER,
+) -> None:
+    """Append a centered colon-split subhead (same run structure as ``set_first_colon_heading``)."""
+    p = tf.add_paragraph()
+    p.alignment = align
+    p.space_before = space_before
+    p.space_after = space_after
+    try:
+        p.line_spacing = BODY_LINE_SPACING
+    except Exception:
+        pass
+    r1 = p.add_run()
+    r1.text = label_without_colon
+    _style_run(r1, size_pt=size_pt, bold=True, color=DARK_BLUE)
+    r2 = p.add_run()
+    r2.text = ":"
+    _style_run(r2, size_pt=size_pt, bold=True, color=DARK_BLUE)
 
 
 def add_prose_paragraph(
@@ -194,7 +299,7 @@ def add_prose_paragraph(
     p.space_before = space_before
     p.space_after = space_after
     try:
-        p.line_spacing = 1.07
+        p.line_spacing = BODY_LINE_SPACING
     except Exception:
         pass
     run = p.add_run()
@@ -212,9 +317,9 @@ def fill_prose_block(tf, lines: list[str], size: int, *, first_space_before=Pt(0
             p.text = line
             p.alignment = PP_ALIGN.LEFT
             p.space_before = first_space_before
-            p.space_after = Pt(5)
+            p.space_after = Pt(4)
             try:
-                p.line_spacing = 1.07
+                p.line_spacing = BODY_LINE_SPACING
             except Exception:
                 pass
             for run in p.runs:
@@ -222,7 +327,7 @@ def fill_prose_block(tf, lines: list[str], size: int, *, first_space_before=Pt(0
                 run.font.color.rgb = BODY_COLOR
                 run.font.name = FONT
         else:
-            add_prose_paragraph(tf, line, size, space_before=Pt(5), space_after=Pt(5))
+            add_prose_paragraph(tf, line, size, space_before=Pt(4), space_after=Pt(4))
 
 
 def set_first_paragraph(
@@ -234,15 +339,16 @@ def set_first_paragraph(
     color=BODY_COLOR,
     space_before=Pt(0),
     space_after=Pt(4),
+    align=PP_ALIGN.LEFT,
 ) -> None:
     """After ``text_frame.clear()``, style the single initial paragraph (subhead or opening line)."""
     p = tf.paragraphs[0]
     p.text = text
-    p.alignment = PP_ALIGN.LEFT
+    p.alignment = align
     p.space_before = space_before
     p.space_after = space_after
     try:
-        p.line_spacing = 1.05
+        p.line_spacing = BODY_LINE_SPACING
     except Exception:
         pass
     for run in p.runs:
@@ -268,6 +374,30 @@ def add_diagram_to_slide(filename: str, left, top, width, height):
         )
     return slide.shapes.add_picture(path, left, top, width=width, height=height)
 
+
+def remove_stale_content_pictures(slide, prs) -> None:
+    """Drop raster shapes from the slide body so re-builds do not stack duplicate figures over the template.
+
+    Keeps pictures in the top band (university / title logos). Poster figures are placed lower.
+    """
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+    h = int(prs.slide_height)
+    keep_top = int(h * 0.17)
+    to_remove = []
+    for shape in slide.shapes:
+        if shape.shape_type != MSO_SHAPE_TYPE.PICTURE:
+            continue
+        if int(shape.top) < keep_top:
+            continue
+        to_remove.append(shape)
+    for shape in reversed(to_remove):
+        sp = shape.element
+        sp.getparent().remove(sp)
+
+
+remove_stale_content_pictures(slide, prs)
+
 # ── TITLE BAR ────────────────────────────────────────────────────────
 title_shape = find_shape("TextBox 11")
 tf = title_shape.text_frame
@@ -283,29 +413,53 @@ run.text = (
 )
 run.font.size = Pt(SZ_TITLE_MAIN)
 run.font.bold = True
-run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+run.font.color.rgb = BLACK
 run.font.name = FONT
 
+# Tagline / meta: white on purple band (matches current deck)
 add_paragraph(
     tf,
-    "When simpler models suffice — logistic baselines under temporal validation",
-    size=SZ_TITLE_META - 2,
+    "When simpler models suffice; logistic baselines under temporal validation",
+    size=SZ_TITLE_TAGLINE,
     bold=False,
-    color=RGBColor(0xEE, 0xEE, 0xEE),
+    color=WHITE,
     align=PP_ALIGN.CENTER,
     space_before=Pt(8),
     space_after=Pt(4),
-    line_spacing=1.08,
+    line_spacing=BODY_LINE_SPACING,
 )
-add_paragraph(tf, "Addy Cruz", size=SZ_TITLE_NAME, bold=False,
-              color=RGBColor(0xFF, 0xFF, 0xFF), align=PP_ALIGN.CENTER)
-add_paragraph(tf, "Advisor: Dr. Liang Jingsai", size=SZ_TITLE_META, bold=False,
-              color=RGBColor(0xEE, 0xEE, 0xEE), align=PP_ALIGN.CENTER, space_before=Pt(4))
-add_paragraph(tf, "DATA-470 Capstone  |  Data Science  |  Westminster University", size=SZ_TITLE_META,
-              color=RGBColor(0xEE, 0xEE, 0xEE), align=PP_ALIGN.CENTER, space_before=Pt(4))
+add_paragraph(
+    tf,
+    "Addy Cruz",
+    size=SZ_TITLE_NAME,
+    bold=False,
+    color=WHITE,
+    align=PP_ALIGN.CENTER,
+    space_before=Pt(6),
+    space_after=Pt(4),
+)
+add_paragraph(
+    tf,
+    "Advisor: Dr. Liang Jingsai",
+    size=SZ_TITLE_ADVISOR,
+    bold=False,
+    color=WHITE,
+    align=PP_ALIGN.CENTER,
+    space_before=Pt(4),
+    space_after=Pt(4),
+)
+add_paragraph(
+    tf,
+    "DATA-470 Capstone  |  Data Science  |  Westminster University",
+    size=SZ_TITLE_META_LINE,
+    bold=False,
+    color=WHITE,
+    align=PP_ALIGN.CENTER,
+    space_before=Pt(4),
+    space_after=Pt(4),
+)
 
-# ── HEADING LABELS ───────────────────────────────────────────────────
-DARK_BLUE = RGBColor(0x1B, 0x3A, 0x5C)
+# ── HEADING LABELS (48 pt, centered, black — uniform inset via set_heading) ──
 
 headings = {
     "TextBox 17": "Problem: why simplicity",
@@ -316,7 +470,7 @@ headings = {
     "TextBox 22": "Limits & when to boost",
 }
 for name, label in headings.items():
-    set_heading(find_shape(name), label, color=DARK_BLUE)
+    set_heading(find_shape(name), label, color=BLACK)
 
 nudge_body_below_heading()
 
@@ -327,7 +481,7 @@ box1_column_bottom = shape_bottom(box1)
 box1.height = int(box1.height * 0.54)
 tf = box1.text_frame
 tf.clear()
-apply_text_frame_layout(tf)
+apply_body_text_frame_layout(tf)
 
 fill_prose_block(
     tf,
@@ -336,7 +490,7 @@ fill_prose_block(
         "This work scores backorder risk at order time with pre-fulfillment predictors only, withholding post-order fields so evaluation matches what operations can actually use.",
         "The outcome is highly imbalanced (~3.4% positives). The poster compares a penalized logistic baseline to gradient boosting under a temporal stress test—the evaluation design matters as much as the algorithm.",
     ],
-    SZ_BODY,
+    SZ_BOX1_BODY,
     first_space_before=Pt(0),
 )
 
@@ -350,33 +504,53 @@ add_image_to_slide("target_balance_v2_ordertime.png", img_left, img_top, width=i
 box2 = find_shape("TextBox 24")
 tf = box2.text_frame
 tf.clear()
-apply_text_frame_layout(tf)
+apply_body_text_frame_layout(tf)
 
-fill_prose_block(
+# First line: "BigQuery" as its own run (matches deck)
+p0 = tf.paragraphs[0]
+p0.alignment = PP_ALIGN.LEFT
+p0.space_before = Pt(0)
+p0.space_after = Pt(4)
+try:
+    p0.line_spacing = BODY_LINE_SPACING
+except Exception:
+    pass
+for part in (
+    "Data come from the SAP Supply Chain ",
+    "BigQuery",
+    " release (Kaggle): sales, delivery, billing, inventory, purchasing, and master tables, aligned at order-line grain.",
+):
+    r = p0.add_run()
+    r.text = part
+    _style_run(r, size_pt=SZ_BODY, bold=False, color=BODY_COLOR)
+add_prose_paragraph(
     tf,
-    [
-        "Data come from the SAP Supply Chain BigQuery release (Kaggle): sales, delivery, billing, inventory, purchasing, and master tables, aligned at order-line grain.",
-        "After labeling and filtering, the analysis uses 31,177 order lines from 52,118 source rows (59.8% coverage), with 3.38% positives (1,054 backorders).",
-        "Thirteen order-time predictors and seven missingness indicators are retained; twenty-three post-order attributes are withheld to enforce a leakage-safe contract. The feature set is tabular and linear-friendly—a strong reason to start with a regularized logistic model before adding boosting.",
-    ],
+    "After labeling and filtering, the analysis uses 31,177 order lines from 52,118 source rows (59.8% coverage), with 3.38% positives (1,054 backorders).",
     SZ_BODY,
-    first_space_before=Pt(0),
+    space_before=Pt(4),
+    space_after=Pt(4),
+)
+add_prose_paragraph(
+    tf,
+    "Thirteen order-time predictors and seven missingness indicators are retained; twenty-three post-order attributes are withheld to enforce a leakage-safe contract. The feature set is tabular and linear-friendly—a strong reason to start with a regularized logistic model before adding boosting.",
+    SZ_BODY,
+    space_before=Pt(4),
+    space_after=Pt(4),
 )
 
 # ── BOX 3: Modeling Approach (TextBox 25) ────────────────────────────
 box3 = find_shape("TextBox 25")
 tf = box3.text_frame
 tf.clear()
-apply_text_frame_layout(tf)
+apply_body_text_frame_layout(tf)
 
-set_first_paragraph(
+set_first_colon_heading(
     tf,
     "Baseline vs. benchmark",
-    size=SZ_MODEL_SUBHEAD,
-    bold=True,
-    color=DARK_BLUE,
+    size_pt=SZ_MODEL_SUBHEAD,
     space_before=Pt(0),
     space_after=Pt(6),
+    align=PP_ALIGN.CENTER,
 )
 add_prose_paragraph(
     tf,
@@ -385,15 +559,13 @@ add_prose_paragraph(
     space_before=Pt(2),
     space_after=Pt(10),
 )
-add_paragraph(
+add_colon_heading_paragraph(
     tf,
     "Validation & Metrics",
-    size=SZ_MODEL_SUBHEAD,
-    bold=True,
-    color=DARK_BLUE,
+    size_pt=SZ_MODEL_SUBHEAD,
     space_before=Pt(8),
     space_after=Pt(6),
-    line_spacing=1.05,
+    align=PP_ALIGN.CENTER,
 )
 add_prose_paragraph(
     tf,
@@ -414,18 +586,22 @@ add_prose_paragraph(
 box4 = find_shape("TextBox 26")
 tf = box4.text_frame
 tf.clear()
-apply_text_frame_layout(tf)
+apply_body_text_frame_layout(tf)
 
-add_paragraph(
-    tf,
-    "Evidence: stress splits, lineage, validation (LR vs. LGBM)",
-    size=SZ_CAPTION - 2,
-    bold=True,
-    color=DARK_BLUE,
-    space_before=Pt(0),
-    space_after=Pt(4),
-    line_spacing=1.05,
-)
+p_cap = tf.paragraphs[0]
+p_cap.alignment = PP_ALIGN.CENTER
+p_cap.space_before = Pt(0)
+p_cap.space_after = Pt(4)
+try:
+    p_cap.line_spacing = BODY_LINE_SPACING
+except Exception:
+    pass
+r_ev1 = p_cap.add_run()
+r_ev1.text = "Evidence: stress splits, lineage, validation (LR vs. LGBM)"
+_style_run(r_ev1, size_pt=SZ_RESULTS_CAPTION, bold=True, color=DARK_BLUE)
+r_ev2 = p_cap.add_run()
+r_ev2.text = ":"
+_style_run(r_ev2, size_pt=SZ_RESULTS_CAPTION, bold=True, color=DARK_BLUE)
 
 stack_top = box4.top + CAPTION_LINE + Emu(80000)
 usable_h = int(shape_bottom(box4) - stack_top - Emu(100000))
@@ -470,7 +646,7 @@ box28 = find_shape("TextBox 28")
 box5.height = int(box5.height * 0.50)
 tf = box5.text_frame
 tf.clear()
-apply_text_frame_layout(tf)
+apply_body_text_frame_layout(tf)
 
 fill_prose_block(
     tf,
@@ -480,7 +656,7 @@ fill_prose_block(
         "An auditable linear baseline aligns with threshold policy and review; LightGBM serves as a nonlinear benchmark, not the default operating choice in this study.",
         "Withholding post-order fields removes leakage and lowers grouped F1 versus a legacy view—evaluation design drives the headline as much as model family. Confusion matrices (row-normalized) show recall at the chosen threshold under extreme imbalance.",
     ],
-    SZ_BODY_DENSE,
+    SZ_TAKEAWAY_BODY,
     first_space_before=Pt(0),
 )
 
@@ -501,86 +677,109 @@ add_image_to_slide(
 box6 = find_shape("TextBox 28")
 tf = box6.text_frame
 tf.clear()
-apply_text_frame_layout(tf)
+apply_body_text_frame_layout(tf)
 
-set_first_paragraph(
+set_first_colon_heading(
     tf,
     "Limitations",
-    size=SZ_SUBHEAD,
-    bold=True,
-    color=DARK_BLUE,
+    size_pt=SZ_LIMIT_HEAD,
     space_before=Pt(0),
     space_after=Pt(6),
+    align=PP_ALIGN.CENTER,
 )
 add_prose_paragraph(
     tf,
     "The temporal test has very few positives (0.89%; n = 58), so threshold metrics are high-variance. Post-order fields are excluded by design—no causal claims. Time-varying positivity and partial labeling complicate fixed thresholds.",
-    SZ_FOOTNOTE,
+    SZ_LIMIT_BODY,
     space_before=Pt(2),
     space_after=Pt(10),
 )
-add_paragraph(
+add_colon_heading_paragraph(
     tf,
     "When gradient boosting may still help",
-    size=SZ_SUBHEAD,
-    bold=True,
-    color=DARK_BLUE,
+    size_pt=SZ_LIMIT_HEAD,
     space_before=Pt(4),
     space_after=Pt(6),
-    line_spacing=1.05,
+    align=PP_ALIGN.CENTER,
 )
 add_prose_paragraph(
     tf,
     "Boosting is worth the added complexity if richer entity histories or interactions produce clear PR-AUC gains on the temporal holdout (not only on grouped splits), or if monitoring cost tradeoffs favor recall. Until then, the simpler model is a defensible default.",
-    SZ_FOOTNOTE,
+    SZ_LIMIT_BODY,
     space_before=Pt(2),
     space_after=Pt(10),
 )
-add_paragraph(
+add_colon_heading_paragraph(
     tf,
     "Future Work",
-    size=SZ_SUBHEAD,
-    bold=True,
-    color=DARK_BLUE,
+    size_pt=SZ_LIMIT_HEAD,
     space_before=Pt(4),
     space_after=Pt(6),
-    line_spacing=1.05,
+    align=PP_ALIGN.CENTER,
 )
 add_prose_paragraph(
     tf,
     "Extend the target to shortfall magnitude where labels allow; add entity histories and demand or inventory context as order-time inputs; deploy rolling temporal validation for production monitoring.",
-    SZ_FOOTNOTE,
+    SZ_LIMIT_BODY,
     space_before=Pt(2),
     space_after=Pt(10),
 )
 add_paragraph(
     tf,
     "Data Source",
-    size=SZ_DATA_SOURCE,
+    size=SZ_DATA_SOURCE_LABEL,
     bold=True,
     color=RGBColor(0x66, 0x66, 0x66),
     space_before=Pt(8),
     space_after=Pt(4),
-    line_spacing=1.06,
+    line_spacing=BODY_LINE_SPACING,
 )
 add_paragraph(
     tf,
     "SAP Supply Chain Dataset (BigQuery / Kaggle).",
-    size=SZ_DATA_SOURCE - 2,
+    size=SZ_DATA_SOURCE_DETAIL,
     color=RGBColor(0x88, 0x88, 0x88),
     space_before=Pt(2),
     space_after=Pt(2),
-    line_spacing=1.07,
+    line_spacing=BODY_LINE_SPACING,
 )
 add_paragraph(
     tf,
     "Reproducible ETL and modeling code accompany the project.",
-    size=SZ_DATA_SOURCE - 2,
+    size=SZ_DATA_SOURCE_DETAIL,
     color=RGBColor(0x88, 0x88, 0x88),
     space_before=Pt(0),
     space_after=Pt(0),
-    line_spacing=1.07,
+    line_spacing=BODY_LINE_SPACING,
 )
+
+# ── Optional: diagram column label (TextBox 2 — present on current template/poster) ──
+try:
+    _pipe = find_shape("TextBox 2")
+    _tfp = _pipe.text_frame
+    _tfp.clear()
+    _tfp.margin_left = Emu(91440)
+    _tfp.margin_top = Emu(45720)
+    _tfp.margin_right = Emu(91440)
+    _tfp.margin_bottom = Emu(45720)
+    _tfp.word_wrap = True
+    try:
+        _tfp.vertical_anchor = MSO_VERTICAL_ANCHOR.TOP
+    except Exception:
+        pass
+    try:
+        _tfp.auto_size = MSO_AUTO_SIZE.NONE
+    except Exception:
+        pass
+    _pp = _tfp.paragraphs[0]
+    _pp.alignment = PP_ALIGN.CENTER
+    _pp.space_before = Pt(0)
+    _pp.space_after = Pt(5)
+    _rr = _pp.add_run()
+    _rr.text = "Pipeline Architecture:"
+    _style_run(_rr, size_pt=SZ_PIPELINE_ARCH, bold=True, color=DARK_BLUE)
+except KeyError:
+    pass
 
 # ── Remove unused slides (keep only slide 1) ────────────────────────
 # Delete slides 2-8 (reverse order to preserve indices)
