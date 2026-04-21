@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at_utc": "2026-04-20T23:41:22.237327+00:00",
+  "generated_at_utc": "2026-04-21T16:41:00.539099+00:00",
   "repository_root": "/Users/addycruz/Workspace/DATA-470_DSCapstone",
   "purpose": "PosterCraft full-poster aesthetic generation fed by pipeline outputs. Verbatim metrics below are copied from CSV/JSON; chart images are matplotlib/seaborn exports\u2014composite those rasters, do not redraw plots or numbers in diffusion.",
   "authoritative_chart_rasters": [
@@ -8,7 +8,7 @@
       "id": "target_balance",
       "relative_path": "output/figures/target_balance_v2_ordertime.png",
       "postercraft_instruction": "Use this file as the figure layer for this panel; do not regenerate plot geometry or labels.",
-      "sha256": "519bc6afdaffba8f6a6d1505b06d4c735bf26016b3e5df752441bbb34f73c5f0",
+      "sha256": "eb8eb47f45afa697e5f81cc3b1ffc70c7b97bfba818b1805f454b710b5993e06",
       "role_on_poster": "Left column: class balance strip chart",
       "generator_script": "scripts/generate_target_balance.py"
     },
@@ -16,7 +16,7 @@
       "id": "showcase_model_comparison_heatmap",
       "relative_path": "output/figures/showcase_model_comparison_heatmap.png",
       "postercraft_instruction": "Use this file as the figure layer for this panel; do not regenerate plot geometry or labels.",
-      "sha256": "0f8d6bf2622fd10c1c78d36855266f329872502a8b07361cf6bf78ad57681bed",
+      "sha256": "4ad2cdf12abf20483cc63c3cb0c545a6299bed7b7368cd4cb93173bf66dc6385",
       "role_on_poster": "Center: ROC-AUC / PR-AUC grids (Logistic vs LightGBM)",
       "generator_script": "scripts/generate_showcase_metrics_visuals.py"
     },
@@ -40,7 +40,7 @@
       "id": "confusion_matrices_temporal",
       "relative_path": "output/figures/classification_confusion_matrices_v2_ordertime.png",
       "postercraft_instruction": "Use this file as the figure layer for this panel; do not regenerate plot geometry or labels.",
-      "sha256": "6152c41e9a24f5754f384b43523f867e49ac19791a8396775e50b2f901839484",
+      "sha256": "ab09222bd4d2db057b9d0e3d6ba68da45e813ecf8dba8295899a703ce812461f",
       "role_on_poster": "Right column: row-normalized confusion matrices",
       "generator_script": "scripts/generate_poster_figures_v2.py \u2192 src/models/poster_figures_v2.py"
     }
@@ -151,22 +151,22 @@
   "optional_matplotlib_outputs": [
     {
       "relative_path": "output/figures/roc_curves_temporal_v2_ordertime.png",
-      "sha256": "5225d68fabd1b0b815a0fee0dde8a9ec793a52433bb8aa5f54e72871635dd4d4",
+      "sha256": "121cee0bcb0e26afd6e8b3745e110203fe690b3f0cf15edbfdb5996084cc8e8e",
       "note": "Optional/supporting matplotlib export if your PosterCraft layout includes it."
     },
     {
       "relative_path": "output/figures/pr_curves_temporal_v2_ordertime.png",
-      "sha256": "689e8b8b73cdff86e0c8d5bfc6e4ec2ca88b260a3f99b439843576070177b894",
+      "sha256": "81eafbaed599e2fa3f2298e7c53f3cc7929f0df4fc06ef06a6e66a5c18cd1abd",
       "note": "Optional/supporting matplotlib export if your PosterCraft layout includes it."
     },
     {
       "relative_path": "output/figures/temporal_positive_rate_drift_v2_ordertime.png",
-      "sha256": "fce75d87e3ba6f188ecae503003f821ffaedbf3f3f91f6bb01b2a69b092f8e1d",
+      "sha256": "3ccadb281ea33db4ef35e2d0b22ca4aee29aa7af48bcbb6f97f3b5ecca535e5e",
       "note": "Optional/supporting matplotlib export if your PosterCraft layout includes it."
     },
     {
       "relative_path": "output/figures/score_distribution_temporal_v2_ordertime.png",
-      "sha256": "dee3825eaccc8cf49972cd2317d13d053893db5c221e6b7d979b3829f79b9cab",
+      "sha256": "203841875434d79c53b3c0863ea3a117d464a6cef44d80cec2bf9c3bf6cf76a1",
       "note": "Optional/supporting matplotlib export if your PosterCraft layout includes it."
     },
     {
@@ -211,6 +211,6 @@
     "builder": "build_poster.py",
     "template": "Showcase Templates.pptx",
     "output_pptx_relative": "DS_Capstone_Poster_FINAL.pptx",
-    "pptx_sha256": "86512f3c76d68192e187c861162c88f596dd226ebeb531931d56afd67212ded3"
+    "pptx_sha256": "67c4e97b4933f3a54b4c269ef200cc37faf01541d402f5b5a1b219a420020cf3"
   }
 }

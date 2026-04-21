@@ -21,9 +21,10 @@ flowchart TB
   GRAIN -->|engineer| FEAT
   FEAT -->|enforce| DROP
 
-  classDef source fill:#cfd8dc,stroke:#546e7a,color:#212121
-  classDef pipeline fill:#ffecb3,stroke:#ff8f00,color:#212121
-  classDef process fill:#c8e6c9,stroke:#2e7d32,color:#212121
+  %% Westminster brand: Night, Copper, Sky, Birch, Thistle (see westminster_poster_palette.py)
+  classDef source fill:#E0F4FA,stroke:#00B5E2,color:#101820
+  classDef pipeline fill:#F5EBE0,stroke:#9D581F,color:#101820
+  classDef process fill:#EDE5F7,stroke:#9063CD,color:#101820
 
   class SRC source
   class ETL,GRAIN,FEAT pipeline

@@ -158,7 +158,10 @@ def build_manifest_dict() -> dict:
             "id": "target_balance",
             "role_on_poster": "Left column: class balance strip chart",
             "png_relative": "output/figures/target_balance_v2_ordertime.png",
-            "generator_script": "scripts/generate_target_balance.py",
+            "generator_script": (
+                "scripts/build_canonical_poster_visual_spec.py → scripts/render_poster_visuals_from_canonical_spec.py "
+                "(fallback: scripts/generate_target_balance.py)"
+            ),
             "primary_sources": [
                 "data/processed/master_order_fulfillment_modeling_v2_ordertime.csv",
             ],
@@ -168,7 +171,10 @@ def build_manifest_dict() -> dict:
             "id": "showcase_model_comparison_heatmap",
             "role_on_poster": "Center: ROC-AUC / PR-AUC grids (Logistic vs LightGBM)",
             "png_relative": "output/figures/showcase_model_comparison_heatmap.png",
-            "generator_script": "scripts/generate_showcase_metrics_visuals.py",
+            "generator_script": (
+                "scripts/build_canonical_poster_visual_spec.py → scripts/render_poster_visuals_from_canonical_spec.py "
+                "(fallback: scripts/generate_showcase_metrics_visuals.py)"
+            ),
             "primary_sources": [
                 "output/tables/classification_model_comparison_v2_ordertime.csv",
             ],
@@ -195,7 +201,10 @@ def build_manifest_dict() -> dict:
             "id": "confusion_matrices_temporal",
             "role_on_poster": "Right column: row-normalized confusion matrices",
             "png_relative": "output/figures/classification_confusion_matrices_v2_ordertime.png",
-            "generator_script": "scripts/generate_poster_figures_v2.py → src/models/poster_figures_v2.py",
+            "generator_script": (
+                "scripts/build_canonical_poster_visual_spec.py → scripts/render_poster_visuals_from_canonical_spec.py "
+                "(fallback: scripts/generate_poster_figures_v2.py → src/models/poster_figures_v2.py)"
+            ),
             "primary_sources": ["models/temporal_holdout_test_scores_v2_ordertime.json"],
             "numeric_summary": _confusion_summary(),
             "png_sha256": _sha256_file(FIGURES / "classification_confusion_matrices_v2_ordertime.png"),
@@ -351,6 +360,7 @@ def build_postercraft_bundle(manifest: dict) -> dict:
         "optional_matplotlib_outputs": _optional_matplotlib_outputs(),
         "supplemental_figures_not_on_main_poster": manifest.get("supplemental_figures_not_on_main_poster"),
         "linked_manifest_relative": "output/figures/POSTER_VISUAL_MANIFEST.json",
+        "linked_canonical_visual_spec_relative": "output/poster_visual_spec/canonical_poster_visual_spec.yaml",
         "postercraft_reference": manifest["postercraft_framework"],
         "mermaid_diagrams": manifest.get("mermaid_diagrams"),
         "deck": manifest.get("deck"),

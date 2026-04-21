@@ -25,27 +25,36 @@ else
   echo "Using Python (PowerPoint): $PPT_PY (pptx not in venv)"
 fi
 
-echo "== Target balance (needs processed CSVs) =="
-if [[ -f "data/processed/master_order_fulfillment_modeling_v2_ordertime.csv" ]]; then
-  "$PY" scripts/generate_target_balance.py
-else
-  echo "  skip: master_order CSV missing"
-fi
-
-echo "== Showcase heatmaps / snapshot (needs comparison table) =="
-if [[ -f "output/tables/classification_model_comparison_v2_ordertime.csv" ]]; then
-  if ! "$PY" scripts/generate_showcase_metrics_visuals.py; then
-    echo "  warning: showcase metrics script failed (table shape?); keeping existing PNGs"
+echo "== Canonical visual spec (YAML from CSV/JSON truth) =="
+if [[ -f "data/processed/master_order_fulfillment_modeling_v2_ordertime.csv" \
+      && -f "output/tables/classification_model_comparison_v2_ordertime.csv" \
+      && -f "models/temporal_holdout_test_scores_v2_ordertime.json" ]]; then
+  if ! "$PY" scripts/build_canonical_poster_visual_spec.py; then
+    echo "  warning: build_canonical_poster_visual_spec failed; falling back to legacy figure scripts"
+    if [[ -f "data/processed/master_order_fulfillment_modeling_v2_ordertime.csv" ]]; then
+      "$PY" scripts/generate_target_balance.py
+    fi
+    if [[ -f "output/tables/classification_model_comparison_v2_ordertime.csv" ]]; then
+      "$PY" scripts/generate_showcase_metrics_visuals.py || true
+    fi
+    if [[ -f "models/temporal_holdout_test_scores_v2_ordertime.json" ]]; then
+      "$PY" scripts/generate_poster_figures_v2.py
+    fi
+  else
+    echo "== Template renders (Seaborn/mako from canonical_poster_visual_spec.yaml) =="
+    "$PY" scripts/render_poster_visuals_from_canonical_spec.py
   fi
 else
-  echo "  skip: classification_model_comparison table missing"
-fi
-
-echo "== Temporal holdout curves (needs models JSON) =="
-if [[ -f "models/temporal_holdout_test_scores_v2_ordertime.json" ]]; then
-  "$PY" scripts/generate_poster_figures_v2.py
-else
-  echo "  skip: temporal_holdout_test_scores JSON missing"
+  echo "  skip: need master CSV + classification table + temporal_holdout JSON for spec pipeline"
+  if [[ -f "data/processed/master_order_fulfillment_modeling_v2_ordertime.csv" ]]; then
+    "$PY" scripts/generate_target_balance.py
+  fi
+  if [[ -f "output/tables/classification_model_comparison_v2_ordertime.csv" ]]; then
+    "$PY" scripts/generate_showcase_metrics_visuals.py || true
+  fi
+  if [[ -f "models/temporal_holdout_test_scores_v2_ordertime.json" ]]; then
+    "$PY" scripts/generate_poster_figures_v2.py
+  fi
 fi
 
 echo "== Mermaid diagrams (poster/diagrams → PNG) =="

@@ -1,0 +1,67 @@
+schema_version: 1
+template_id: seaborn_mako_talk_v1
+generated_at_utc: '2026-04-21T16:40:40.919651+00:00'
+description: Canonical facts extracted from pipeline outputs. Renders use poster_template_style;
+  numbers are not invented—only copied from the listed sources.
+truth_paths:
+  master_order_csv: data/processed/master_order_fulfillment_modeling_v2_ordertime.csv
+  classification_model_comparison_csv: output/tables/classification_model_comparison_v2_ordertime.csv
+  temporal_holdout_scores_json: models/temporal_holdout_test_scores_v2_ordertime.json
+  auc_diagnostics_json: models/auc_diagnostics_v2_ordertime.json
+target_balance:
+  order_lines_total: 52118
+  counts:
+    no_backorder: 30123
+    backorder: 1054
+    unresolved_na: 20941
+  bar_labels:
+  - 'No'
+  - 'Yes'
+  - Unresolved
+overstock_optional:
+  inventory_rows_total: 66219
+  counts:
+    no_overstock: 58746
+    overstock: 7473
+  bar_labels:
+  - No (no overstock)
+  - Yes (overstock)
+model_comparison_heatmap:
+  models_order:
+  - logistic_regression
+  - lightgbm
+  splits_order:
+  - temporal_holdout
+  - group_holdout
+  model_labels:
+    logistic_regression: Logistic
+    lightgbm: LightGBM
+  split_labels:
+    temporal_holdout: 'Temporal
+
+      (primary)'
+    group_holdout: 'Grouped
+
+      (diagnostic)'
+  metrics:
+  - roc_auc
+  - pr_auc
+  values:
+    roc_auc:
+      logistic_regression:
+        temporal_holdout: 0.8484396591739717
+        group_holdout: 0.8394496846843802
+      lightgbm:
+        temporal_holdout: 0.843645792761982
+        group_holdout: 0.957625450330186
+    pr_auc:
+      logistic_regression:
+        temporal_holdout: 0.1855736442502459
+        group_holdout: 0.3126145974693483
+      lightgbm:
+        temporal_holdout: 0.0824082378727997
+        group_holdout: 0.6116269447914717
+temporal_holdout_meta:
+  n_test: 6521
+  n_positive: 58
+  baseline_positive_rate: 0.008894341358687318

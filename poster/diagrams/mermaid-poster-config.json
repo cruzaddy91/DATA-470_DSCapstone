@@ -3,13 +3,13 @@
   "themeVariables": {
     "fontFamily": "Times New Roman, Times, Georgia, serif",
     "fontSize": "20px",
-    "primaryColor": "#ffffff",
-    "primaryTextColor": "#222222",
-    "primaryBorderColor": "#1B3A5C",
-    "lineColor": "#1B3A5C",
-    "secondaryColor": "#E8F1FB",
-    "tertiaryColor": "#FFF7E8",
-    "edgeLabelBackground": "#ffffff"
+    "primaryColor": "#FFFFFF",
+    "primaryTextColor": "#101820",
+    "primaryBorderColor": "#211551",
+    "lineColor": "#211551",
+    "secondaryColor": "#F1F1DE",
+    "tertiaryColor": "#E8E4EF",
+    "edgeLabelBackground": "#FFFFFF"
   },
   "flowchart": {
     "curve": "basis",
