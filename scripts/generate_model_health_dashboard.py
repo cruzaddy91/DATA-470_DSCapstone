@@ -69,6 +69,34 @@ def _heat_color(norm: float) -> str:
     return f"hsla({hue:.1f}, 75%, 30%, 0.55)"
 
 
+def _ci_interval_gradient(low: Any, high: Any) -> str | None:
+    """Background gradient for a [low, high] interval on a 0-1 metric (red → green)."""
+    if not (isinstance(low, (int, float)) and isinstance(high, (int, float))):
+        return None
+    lo = max(0.0, min(1.0, float(low)))
+    hi = max(0.0, min(1.0, float(high)))
+    return f"linear-gradient(90deg, {_heat_color(lo)}, {_heat_color(hi)})"
+
+
+def _ci_interval_td(low: Any, high: Any) -> str:
+    if not (isinstance(low, (int, float)) and isinstance(high, (int, float))):
+        return "<td>-</td>"
+    g = _ci_interval_gradient(low, high)
+    text = f"{_fmt(low)} - {_fmt(high)}"
+    return f"<td class='ci-cell' style='background:{g}'>{text}</td>"
+
+
+def _ci_kpi_chip(label: str, low: Any, high: Any) -> str:
+    text = (
+        f"{_fmt(low)} - {_fmt(high)}"
+        if isinstance(low, (int, float)) and isinstance(high, (int, float))
+        else "-"
+    )
+    g = _ci_interval_gradient(low, high)
+    style = f" style='background:{g}'" if g else ""
+    return f"<div class='kpi-chip'{style}><div class='kpi-label'>{label}</div><div class='kpi-value'>{text}</div></div>"
+
+
 def _metric_td(value: Any, *, norm: float | None = None) -> str:
     text = _fmt(value)
     if norm is None or not isinstance(value, (int, float)):
@@ -350,13 +378,14 @@ def _ci_instrument(ci_block: dict[str, Any], preferred: str | None) -> str:
         lo = max(0.0, min(1.0, low))
         hi = max(0.0, min(1.0, high))
         width = max(1.0, (hi - lo) * 100.0)
+        grad = _ci_interval_gradient(low, high) or "linear-gradient(90deg, hsla(0,75%,30%,0.55), hsla(120,75%,30%,0.55))"
         return (
             "<div class='ci-row'>"
             f"<span class='ci-label'>{metric_name}</span>"
             "<div class='ci-track'>"
-            f"<div class='ci-band' style='left:{lo*100:.2f}%; width:{width:.2f}%'></div>"
+            f"<div class='ci-band' style='left:{lo*100:.2f}%; width:{width:.2f}%; background:{grad};'></div>"
             "</div>"
-            f"<span class='ci-val'>{_fmt(low)}-{_fmt(high)}</span>"
+            f"<span class='ci-val ci-val--interval' style='background:{grad}; padding:3px 8px; border-radius:6px;'>{_fmt(low)}-{_fmt(high)}</span>"
             "</div>"
         )
 
@@ -483,9 +512,9 @@ def _ci_rows(ci_block: dict[str, Any], model_names: list[str]) -> str:
         rows.append(
             "<tr>"
             f"<td>{model_name}</td>"
-            f"<td>{_fmt(p.get('low'))} - {_fmt(p.get('high'))}</td>"
-            f"<td>{_fmt(r.get('low'))} - {_fmt(r.get('high'))}</td>"
-            f"<td>{_fmt(f.get('low'))} - {_fmt(f.get('high'))}</td>"
+            f"{_ci_interval_td(p.get('low'), p.get('high'))}"
+            f"{_ci_interval_td(r.get('low'), r.get('high'))}"
+            f"{_ci_interval_td(f.get('low'), f.get('high'))}"
             "</tr>"
         )
     return "\n".join(rows)
@@ -513,9 +542,9 @@ def _ci_dash(ci_block: dict[str, Any], model_names: list[str]) -> str:
         cards.append(
             "<div class='dash-card'>"
             f"<div class='dash-title'>{model_name}</div>"
-            f"<div class='kpi-chip'><div class='kpi-label'>Precision CI</div><div class='kpi-value'>{_fmt(p.get('low'))} - {_fmt(p.get('high'))}</div></div>"
-            f"<div class='kpi-chip'><div class='kpi-label'>Recall CI</div><div class='kpi-value'>{_fmt(r.get('low'))} - {_fmt(r.get('high'))}</div></div>"
-            f"<div class='kpi-chip'><div class='kpi-label'>F1 CI</div><div class='kpi-value'>{_fmt(f.get('low'))} - {_fmt(f.get('high'))}</div></div>"
+            f"{_ci_kpi_chip('Precision CI', p.get('low'), p.get('high'))}"
+            f"{_ci_kpi_chip('Recall CI', r.get('low'), r.get('high'))}"
+            f"{_ci_kpi_chip('F1 CI', f.get('low'), f.get('high'))}"
             "</div>"
         )
     return "<div class='dash-grid'>" + "".join(cards) + "</div>"
@@ -628,6 +657,7 @@ def generate_dashboard(project_root: str | Path | None = None) -> Path:
     th, td {{ border-bottom: 1px solid #30363d; padding: 6px 8px; text-align: left; }}
     th {{ color: #9da7b3; font-weight: 600; }}
     td.metric-cell {{ transition: background-color 0.2s ease; border-radius: 4px; }}
+    td.ci-cell {{ border-radius: 6px; font-weight: 600; }}
     .grid {{ display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }}
     .chart {{ margin: 0; background: #161b22; border: 1px solid #3f4a57; border-radius: 10px; padding: 10px; }}
     figcaption {{ margin-bottom: 8px; font-size: 12px; color: #9da7b3; }}
@@ -696,7 +726,7 @@ def generate_dashboard(project_root: str | Path | None = None) -> Path:
     .rail-fill {{ height:100%; border-radius:999px; background:linear-gradient(90deg, #8252C7, #00B5E2); }}
     .rail-val, .ci-val {{ font-size:11px; color:#dce5f3; text-align:right; }}
     .instrument-card--rails .rail-val {{ font-size:clamp(12px, 1.05vw, 15px); font-weight:700; font-variant-numeric: tabular-nums; }}
-    .ci-band {{ position:absolute; top:0; bottom:0; border-radius:999px; background:linear-gradient(90deg, #9D581F, #00B5E2); }}
+    .ci-band {{ position:absolute; top:0; bottom:0; border-radius:999px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.08); }}
   </style>
 </head>
 <body class="grid-mode">
