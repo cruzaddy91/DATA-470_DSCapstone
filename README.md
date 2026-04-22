@@ -77,7 +77,8 @@ Candidates can include several tabular models (see the cockpit). The narrative s
 | `src/models/v2_ordertime/` | Separate LR and LightGBM pipeline modules, shared preprocessing + evaluation; `classifier_registry.py` wires both |
 | `src/models/backorder_modeling.py` | Dataset prep, splits, orchestration, artifacts (imports `v2_ordertime` for models) |
 | `scripts/run_modeling.py` | Runs the modeling pipeline |
-| `scripts/run_v2_full_chain.sh` | Runs steps 1–4 above in order |
+| `scripts/run_v2_full_chain.sh` | Runs data → targets → modeling → HTML → **notebook `.py` replacements** (EDA + summaries) |
+| `scripts/run_notebook_replacements.py` | Headless substitute for `notebooks/01–03` (writes `discovery_*.png`, CSVs, checks figure paths) |
 | `scripts/generate_model_performance_side_by_side_html.py` | Writes a simple comparison report |
 | `models/classification_metrics_v2_ordertime.json` | Main saved classification metrics |
 
@@ -91,6 +92,7 @@ python run_pipeline.py
 python -m src.features.build_targets
 python scripts/run_modeling.py
 python scripts/generate_model_performance_side_by_side_html.py
+python scripts/run_notebook_replacements.py
 ```
 
 ## End-to-end (dependency order)

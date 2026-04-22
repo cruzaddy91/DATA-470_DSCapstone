@@ -2,8 +2,9 @@
 # Full v2 backorder pipeline in dependency order:
 #   1) data pipeline (master tables + BRD)
 #   2) build_targets (v2 ordertime CSV + optional snapshot/v3 side tables)
-#   3) modeling (LR + LightGBM metrics + figures)
+#   3) modeling (metrics + figures + dashboard inputs)
 #   4) HTML side-by-side report
+#   5) notebook replacements (.py EDA + summaries; same output paths as notebooks/)
 #
 # Usage (from repo root):
 #   ./scripts/run_v2_full_chain.sh
@@ -32,8 +33,11 @@ echo "==> [2/4] Build targets (v2 modeling table + related outputs)"
 echo "==> [3/4] Train/evaluate classifiers"
 "$PY" "$ROOT/scripts/run_modeling.py"
 
-echo "==> [4/4] Model comparison HTML"
+echo "==> [4/5] Model comparison HTML"
 "$PY" "$ROOT/scripts/generate_model_performance_side_by_side_html.py"
+
+echo "==> [5/5] Notebook replacements (.py EDA + summaries; discovery PNGs + tables)"
+"$PY" "$ROOT/scripts/run_notebook_replacements.py" --root "$ROOT"
 
 echo ""
 echo "Done."
@@ -41,3 +45,4 @@ echo "  Metrics:  $ROOT/models/classification_metrics_v2_ordertime.json"
 echo "  Report:   $ROOT/docs/html/Model-Performance-SideBySide.html"
 echo "  Figures:  $ROOT/output/figures/"
 echo "  Temporal scores (ROC/PR inputs): $ROOT/models/temporal_holdout_test_scores_v2_ordertime.json"
+echo "  (Jupyter notebooks under notebooks/ are optional; use scripts above for CI/headless.)"
