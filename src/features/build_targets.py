@@ -62,6 +62,12 @@ ORDERTIME_NUMERIC_FEATURES = [
     "order_quarter",
 ]
 
+# Leakage-safe signal investment backlog (validate each with temporal / recent holdouts):
+# - Material/plant or customer rolling backorder rates using only history strictly before order_date.
+# - Schedule stress vs requested_delivery_date (gap days, lateness flags) from fields known at order time.
+# - Order-line maturity / partial confirmation signals if present in raw exports without future peeking.
+# - Sparse categorical embeddings or target encoding fit inside CV folds only (never on full train + test).
+
 SNAPSHOT_BACKORDER_TARGET_COLUMN = "target_snapshot_backorder_risk"
 SNAPSHOT_OSQ_COLUMN = "outstanding_qty"
 SNAPSHOT_SI_COLUMN = "saleable_inventory"

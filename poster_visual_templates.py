@@ -132,12 +132,12 @@ def render_model_comparison_heatmap(spec: dict, root: Path) -> Path | None:
     apply_poster_template_style()
     cmap = heatmap_cmap()
 
-    fig, axes = plt.subplots(1, 2, figsize=(13, 6.2))
+    fig, axes = plt.subplots(1, 2, figsize=(18, 7.2))
     fig.suptitle(
         "Logistic vs. LightGBM — ranking metrics under stress splits (template render)",
-        fontsize=15,
+        fontsize=20,
         fontweight="bold",
-        y=0.98,
+        y=0.99,
     )
 
     for ax, (metric_key, metric_title, metric_blurb, vmin_fix, vmax_fix) in zip(axes, metrics_cfg):
@@ -171,10 +171,10 @@ def render_model_comparison_heatmap(spec: dict, root: Path) -> Path | None:
             cmap=cmap,
             vmin=vmin_m,
             vmax=vmax_m,
-            linewidths=2.0,
+            linewidths=2.5,
             linecolor=SNOW,
             cbar=True,
-            cbar_kws={"shrink": 0.72, "pad": 0.02, "label": cbar_label},
+            cbar_kws={"shrink": 0.78, "pad": 0.04, "label": cbar_label},
         )
         nrows, ncols = metric_frame.shape
         for i in range(nrows):
@@ -189,7 +189,7 @@ def render_model_comparison_heatmap(spec: dict, root: Path) -> Path | None:
                     f"{val:.2f}",
                     ha="center",
                     va="center",
-                    fontsize=17,
+                    fontsize=26,
                     fontweight="bold",
                     color=tc,
                 )
@@ -205,13 +205,30 @@ def render_model_comparison_heatmap(spec: dict, root: Path) -> Path | None:
                 linewidth=3,
             )
             ax.add_patch(rect)
-        ax.set_title(f"{metric_title}\n{metric_blurb}", fontsize=13, fontweight="bold", pad=10, color=NIGHT)
-        ax.set_xlabel("Holdout type (how the test set was formed)", fontsize=12, fontweight="bold")
-        ax.tick_params(axis="x", labelrotation=0, labelsize=11)
-        ax.tick_params(axis="y", labelsize=13)
+        ax.set_title(f"{metric_title}\n{metric_blurb}", fontsize=16, fontweight="bold", pad=14, color=NIGHT)
+        ax.set_xlabel("Holdout type (how the test set was formed)", fontsize=15, fontweight="bold", labelpad=8)
+        ax.tick_params(axis="x", labelrotation=0, labelsize=15)
+        ax.tick_params(axis="y", labelsize=16)
 
-    axes[0].set_ylabel("Model", fontsize=12, fontweight="bold")
+    axes[0].set_ylabel("Model", fontsize=15, fontweight="bold", labelpad=8)
     axes[1].set_ylabel("")
+    _main = {axes[0], axes[1]}
+    for a in fig.axes:
+        if a in _main:
+            continue
+        a.tick_params(labelsize=13, length=4, width=1.0)
+        yl = a.get_ylabel()
+        if yl:
+            a.set_ylabel(yl, fontsize=13, fontweight="bold")
+    fig.text(
+        0.5,
+        0.10,
+        "Scope: order–time v2 table scores. Extension: staged T–k pre–outcome model—see poster.",
+        ha="center",
+        va="top",
+        fontsize=11.5,
+        color=FLINT,
+    )
     fig.text(
         0.5,
         0.02,
@@ -219,11 +236,12 @@ def render_model_comparison_heatmap(spec: dict, root: Path) -> Path | None:
         "Night outline = best in column.",
         ha="center",
         va="bottom",
-        fontsize=10,
+        fontsize=12,
+        color=FLINT,
     )
-    plt.tight_layout(rect=(0, 0.06, 1, 0.92))
+    plt.tight_layout(rect=(0, 0.11, 1, 0.88))
     out = _figures_dir(root) / FIG_FILES["heatmap"]
-    fig.savefig(out, dpi=220, bbox_inches="tight", facecolor="white")
+    fig.savefig(out, dpi=300, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     return out
 
@@ -383,7 +401,7 @@ def render_temporal_figures(spec: dict, root: Path) -> dict[str, Path]:
 
     # Confusion matrices (row-normalized), side by side
     cmap_cm = brand_confusion_heatmap_cmap()
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4.5))
+    fig, axes = plt.subplots(1, 2, figsize=(15, 5.8))
     for ax, (name, label_short) in zip(axes, (("logistic_regression", "Logistic"), ("lightgbm", "LightGBM"))):
         if name not in models:
             ax.axis("off")
@@ -402,7 +420,7 @@ def render_temporal_figures(spec: dict, root: Path) -> dict[str, Path]:
             ax=ax,
             xticklabels=["Pred 0", "Pred 1"],
             yticklabels=["Act 0", "Act 1"],
-            linewidths=1.0,
+            linewidths=2.0,
             linecolor=SNOW,
         )
         for i in range(cm_rn.shape[0]):
@@ -415,15 +433,16 @@ def render_temporal_figures(spec: dict, root: Path) -> dict[str, Path]:
                     f"{val:.2f}",
                     ha="center",
                     va="center",
-                    fontsize=15,
+                    fontsize=22,
                     fontweight="bold",
                     color=tc,
                 )
-        ax.set_title(f"{label_short} (row-normalized)")
-    plt.suptitle("Confusion matrices — temporal holdout (template)", y=1.02)
+        ax.set_title(f"{label_short} (row-normalized)", fontsize=16, fontweight="bold", pad=10, color=NIGHT)
+        ax.tick_params(axis="both", labelsize=15)
+    plt.suptitle("Confusion matrices — temporal holdout (template)", y=1.01, fontsize=16, fontweight="bold")
     fig.tight_layout()
     p = fig_dir / FIG_FILES["confusion"]
-    fig.savefig(p, dpi=200, bbox_inches="tight", facecolor="white")
+    fig.savefig(p, dpi=300, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     out["confusion"] = p
 

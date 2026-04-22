@@ -1,9 +1,9 @@
 # Large data and model artifacts — keep Cursor fast
 data/
 src/data/
-output/
-models/
-src/models/
+#output/
+#models/
+#src/models/
 figures/
 
 # Python environment and cache
@@ -37,4 +37,4 @@ build/
 **/*.pkl
 **/*.joblib
 **/*.h5
-**/*.csv
+#**/*.csv

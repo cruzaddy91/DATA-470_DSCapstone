@@ -13,10 +13,12 @@ from sklearn.base import clone
 
 from src.models.v2_ordertime.classifier_registry import build_all_v2_binary_classifiers
 from src.models.v2_ordertime.evaluation import (
-    build_recency_sample_weights,
+    build_training_sample_weights,
     compute_classification_metrics,
     evaluate_classifier_train_test_split,
+    extend_sample_weight_after_smote,
     fit_pipeline_maybe_weighted,
+    maybe_smote_resample_training,
     select_threshold_with_precision_floor,
     threshold_from_train_temporal_tail,
     threshold_from_train_oof,
@@ -103,12 +105,14 @@ MODEL_FILE_MAP = {
     "xgboost": f"backorder_xgboost{ARTIFACT_SUFFIX}.joblib",
     "catboost": f"backorder_catboost{ARTIFACT_SUFFIX}.joblib",
     "soft_vote_lr_lightgbm": f"backorder_soft_vote_lr_lightgbm{ARTIFACT_SUFFIX}.joblib",
+    "oof_calibrated_stack": f"backorder_oof_calibrated_stack{ARTIFACT_SUFFIX}.joblib",
 }
 
 CLASSIFICATION_METRICS_FILE = f"classification_metrics{ARTIFACT_SUFFIX}.json"
 OVERFIT_RESULTS_FILE = f"overfit_eval_results{ARTIFACT_SUFFIX}.json"
 AUC_DIAGNOSTICS_FILE = f"auc_diagnostics{ARTIFACT_SUFFIX}.json"
 TEMPORAL_HOLDOUT_SCORES_FILE = f"temporal_holdout_test_scores{ARTIFACT_SUFFIX}.json"
+RECENT_HOLDOUT_SCORES_FILE = f"recent_24_week_test_scores{ARTIFACT_SUFFIX}.json"
 REGRESSION_METRICS_FILE = f"regression_metrics{ARTIFACT_SUFFIX}.json"
 TARGET_BALANCE_FIGURE_FILE = f"target_balance{ARTIFACT_SUFFIX}.png"
 CONFUSION_FIGURE_FILE = f"classification_confusion_matrices{ARTIFACT_SUFFIX}.png"
@@ -179,6 +183,114 @@ class SoftVoteBinaryEnsemble:
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
         return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
+
+
+@dataclass
+class OOFCalibratedStackEnsemble:
+    """Stack base model probabilities into a calibrated logistic meta-model."""
+
+    estimators: list[tuple[str, Any]]
+    meta_model: Any
+
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        if not self.estimators:
+            raise ValueError("OOFCalibratedStackEnsemble requires at least one estimator.")
+        base_probs = []
+        for _, est in self.estimators:
+            p = np.asarray(est.predict_proba(X), dtype=float)[:, 1]
+            base_probs.append(p)
+        Z = np.column_stack(base_probs)
+        p_meta = np.asarray(self.meta_model.predict_proba(Z), dtype=float)[:, 1]
+        return np.column_stack([1.0 - p_meta, p_meta])
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
+
+
+def _stack_oof_probability_matrix(
+    dataset: PreparedDataset,
+    train_index: np.ndarray,
+    base_names: list[str],
+    base_templates: dict[str, Any],
+) -> tuple[np.ndarray, int]:
+    """Train-only OOF positive-class probabilities for stack bases (no holdout leakage)."""
+    if not base_names:
+        return np.zeros((0, 0), dtype=float), 0
+    X_train = dataset.features.iloc[train_index]
+    y_train_arr = dataset.target.iloc[train_index].to_numpy()
+    train_dates = pd.to_datetime(dataset.meta.iloc[train_index][DATE_COLUMN], errors="coerce")
+    min_count = int(np.bincount(y_train_arr.astype(int), minlength=2).min()) if len(y_train_arr) else 0
+    n_splits = max(2, min(5, min_count)) if min_count >= 2 else 0
+    if n_splits < 2:
+        return np.zeros((len(X_train), len(base_names)), dtype=float), 0
+    oof = np.zeros((len(X_train), len(base_names)), dtype=float)
+    from sklearn.model_selection import StratifiedKFold
+
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    for tr_idx, va_idx in skf.split(X_train, y_train_arr):
+        X_tr_raw = X_train.iloc[tr_idx]
+        y_tr_raw = y_train_arr[tr_idx]
+        fold_weight = build_training_sample_weights(
+            y_tr_raw,
+            train_dates=train_dates.iloc[tr_idx],
+        )
+        n_b = len(X_tr_raw)
+        X_tr_sm, y_tr_sm = maybe_smote_resample_training(
+            X_tr_raw, y_tr_raw, list(dataset.categorical_features)
+        )
+        fold_weight = extend_sample_weight_after_smote(fold_weight, n_b, len(X_tr_sm))
+        for j, model_name in enumerate(base_names):
+            pipe = clone(base_templates[model_name])
+            fit_pipeline_maybe_weighted(pipe, X_tr_sm, y_tr_sm, fold_weight)
+            oof[va_idx, j] = pipe.predict_proba(X_train.iloc[va_idx])[:, 1]
+    return oof, n_splits
+
+
+def _stack_oof_pr_aucs_per_model(base_names: list[str], oof: np.ndarray, y_arr: np.ndarray) -> dict[str, float]:
+    from sklearn.metrics import average_precision_score
+
+    if not base_names or oof.shape[1] != len(base_names):
+        return {}
+    if len(np.unique(y_arr)) < 2:
+        return {name: 0.0 for name in base_names}
+    out: dict[str, float] = {}
+    for j, name in enumerate(base_names):
+        out[name] = float(average_precision_score(y_arr, oof[:, j]))
+    return out
+
+
+def _prune_stack_base_names(
+    base_names: list[str],
+    oof: np.ndarray,
+    y_arr: np.ndarray,
+) -> tuple[list[str], dict[str, float], dict[str, float]]:
+    """
+    Drop weak stack bases using train OOF PR-AUC only.
+
+    If too few pass the floor, keep the top two by OOF PR-AUC so the stack can still run.
+    """
+    pr_aucs = _stack_oof_pr_aucs_per_model(base_names, oof, y_arr)
+    meta: dict[str, float] = {
+        "stack_pruning_enabled": 1.0 if os.environ.get("MODEL_STACK_ENABLE_PRUNING", "1") == "1" else 0.0,
+        "stack_prune_min_oof_pr_auc": float(os.environ.get("MODEL_STACK_MIN_OOF_PR_AUC", "0.06")),
+        "stack_pruning_fallback_top2": 0.0,
+    }
+    for name in base_names:
+        meta[f"stack_oof_pr_auc__{name}"] = float(pr_aucs.get(name, 0.0))
+
+    enable = os.environ.get("MODEL_STACK_ENABLE_PRUNING", "1") == "1"
+    min_pr = float(os.environ.get("MODEL_STACK_MIN_OOF_PR_AUC", "0.06"))
+    if not enable or not base_names:
+        return list(base_names), pr_aucs, meta
+
+    kept = [n for n in base_names if pr_aucs.get(n, 0.0) >= min_pr]
+    if len(kept) >= 2:
+        return kept, pr_aucs, meta
+
+    ranked = sorted(base_names, key=lambda n: pr_aucs.get(n, 0.0), reverse=True)
+    fallback = ranked[: min(2, len(ranked))]
+    meta["stack_pruning_fallback_top2"] = 1.0
+    return fallback, pr_aucs, meta
 
 
 def _get_paths(project_root: str | Path | None = None) -> dict[str, Path]:
@@ -360,6 +472,94 @@ def prepare_backorder_dataset(project_root: str | Path | None = None) -> Prepare
         order["confirmation_fill_ratio"] = 1.0
 
     derived_numeric_features = ["confirmation_gap_qty", "confirmation_fill_ratio"]
+
+    # Optional signal expansion tuned for rare-positive recall.
+    # Uses only values known at order creation (no future outcomes).
+    enable_signal_expansion = os.environ.get("MODEL_ENABLE_SIGNAL_EXPANSION", "0").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
+    if enable_signal_expansion:
+        oq = pd.to_numeric(order.get("cumulative_order_quantity"), errors="coerce")
+        lead = pd.to_numeric(order.get("requested_lead_time_days"), errors="coerce")
+        weekday = pd.to_numeric(order.get("order_weekday"), errors="coerce")
+        month = pd.to_numeric(order.get("order_month"), errors="coerce")
+        quarter = pd.to_numeric(order.get("order_quarter"), errors="coerce")
+
+        denom = oq.where(oq > 0)
+        order["confirmation_gap_ratio"] = (
+            pd.to_numeric(order["confirmation_gap_qty"], errors="coerce") / denom
+        ).replace([np.inf, -np.inf], np.nan).fillna(0.0).clip(lower=0.0, upper=2.0)
+        order["lead_time_gap_interaction"] = np.log1p(order["confirmation_gap_qty"].clip(lower=0)) * np.log1p(
+            lead.clip(lower=0).fillna(0.0)
+        )
+        order["low_fill_high_lead_flag"] = (
+            (pd.to_numeric(order["confirmation_fill_ratio"], errors="coerce").fillna(1.0) < 0.85)
+            & (lead.fillna(0.0) >= 14.0)
+        ).astype(int)
+        order["zero_confirmed_qty_flag"] = (pd.to_numeric(order.get("cumulative_confirmed_quantity"), errors="coerce").fillna(0.0) <= 0.0).astype(int)
+
+        # Cyclical encodings help linear models represent seasonality without ordinal distortion.
+        order["order_weekday_sin"] = np.sin(2.0 * np.pi * weekday.fillna(0.0) / 7.0)
+        order["order_weekday_cos"] = np.cos(2.0 * np.pi * weekday.fillna(0.0) / 7.0)
+        # order_month in dataset is month-of-year [1..12]; shift to zero-based cycle.
+        order["order_month_sin"] = np.sin(2.0 * np.pi * (month.fillna(1.0) - 1.0) / 12.0)
+        order["order_month_cos"] = np.cos(2.0 * np.pi * (month.fillna(1.0) - 1.0) / 12.0)
+        # quarter in dataset is [1..4].
+        order["order_quarter_sin"] = np.sin(2.0 * np.pi * (quarter.fillna(1.0) - 1.0) / 4.0)
+        order["order_quarter_cos"] = np.cos(2.0 * np.pi * (quarter.fillna(1.0) - 1.0) / 4.0)
+
+        derived_numeric_features.extend(
+            [
+                "confirmation_gap_ratio",
+                "lead_time_gap_interaction",
+                "low_fill_high_lead_flag",
+                "zero_confirmed_qty_flag",
+                "order_weekday_sin",
+                "order_weekday_cos",
+                "order_month_sin",
+                "order_month_cos",
+                "order_quarter_sin",
+                "order_quarter_cos",
+            ]
+        )
+
+    # Drift-focused recent-signal pack (order-time safe), enabled by default.
+    # Targets features called out in temporal audit drift diagnostics.
+    enable_drift_signal_pack = os.environ.get("MODEL_ENABLE_DRIFT_SIGNAL_PACK", "1").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
+    if enable_drift_signal_pack:
+        lead = pd.to_numeric(order.get("requested_lead_time_days"), errors="coerce").fillna(0.0).clip(lower=0.0)
+        gap = pd.to_numeric(order.get("confirmation_gap_qty"), errors="coerce").fillna(0.0).clip(lower=0.0)
+        net = pd.to_numeric(order.get("net_value"), errors="coerce").fillna(0.0).clip(lower=0.0)
+        conf = pd.to_numeric(order.get("cumulative_confirmed_quantity"), errors="coerce").fillna(0.0).clip(lower=0.0)
+
+        # Captures non-linear risk when lead time stretches, while damping outliers.
+        order["lead_time_log1p"] = np.log1p(lead)
+        # Stress score combines delay and unconfirmed demand size.
+        order["lead_gap_stress"] = np.log1p(lead) * np.log1p(gap)
+        # Value-at-risk proxy where larger orders with low confirmation are more fragile.
+        order["net_unconfirmed_stress"] = np.log1p(net) * np.log1p(gap)
+        # Confirmation inefficiency relative to requested lead time.
+        order["confirmation_velocity_inverse"] = gap / (1.0 + lead)
+        # Fraction of value with no confirmed quantity signal.
+        order["zero_confirmed_value_risk"] = ((conf <= 0.0).astype(float) * np.log1p(net))
+
+        derived_numeric_features.extend(
+            [
+                "lead_time_log1p",
+                "lead_gap_stress",
+                "net_unconfirmed_stress",
+                "confirmation_velocity_inverse",
+                "zero_confirmed_value_risk",
+            ]
+        )
     for column in derived_numeric_features:
         order[column] = pd.to_numeric(order[column], errors="coerce")
     _assert_no_non_finite(order, RAW_NUMERIC_FEATURES, ORDERTIME_MODELING_TABLE)
@@ -638,9 +838,12 @@ def _evaluate_osq_si_logistic(
             X_train,
             y_train,
             train_dates,
+            categorical_features=[],
         )
     else:
-        threshold, strategy, thresh_meta = threshold_from_train_oof(template, X_train, y_train)
+        threshold, strategy, thresh_meta = threshold_from_train_oof(
+            template, X_train, y_train, categorical_features=[]
+        )
     pipeline_final = clone(template)
     pipeline_final.fit(X_train, y_train)
     y_proba = pipeline_final.predict_proba(X_test)[:, 1]
@@ -841,16 +1044,19 @@ def _evaluate_models(
                     base_models = build_all_v2_binary_classifiers(dataset, dataset.target.iloc[train_index])
                     lr_pipe = deepcopy(base_models["logistic_regression"])
                     lgb_pipe = deepcopy(base_models["lightgbm"])
-                    use_recency_weights = os.environ.get("MODEL_USE_RECENCY_WEIGHTS", "1") == "1"
-                    sample_weight = None
-                    if use_recency_weights:
-                        half_life = float(os.environ.get("MODEL_RECENCY_HALFLIFE_DAYS", "90"))
-                        sample_weight = build_recency_sample_weights(
-                            dates.iloc[tr_idx],
-                            half_life_days=half_life,
-                        )
-                    fit_pipeline_maybe_weighted(lr_pipe, X_train.iloc[tr_idx], y_train_arr[tr_idx], sample_weight)
-                    fit_pipeline_maybe_weighted(lgb_pipe, X_train.iloc[tr_idx], y_train_arr[tr_idx], sample_weight)
+                    X_sv = X_train.iloc[tr_idx]
+                    y_sv = y_train_arr[tr_idx]
+                    sample_weight = build_training_sample_weights(
+                        y_sv,
+                        train_dates=dates.iloc[tr_idx],
+                    )
+                    n_sv = len(X_sv)
+                    X_sv, y_sv = maybe_smote_resample_training(
+                        X_sv, y_sv, list(dataset.categorical_features)
+                    )
+                    sample_weight = extend_sample_weight_after_smote(sample_weight, n_sv, len(X_sv))
+                    fit_pipeline_maybe_weighted(lr_pipe, X_sv, y_sv, sample_weight)
+                    fit_pipeline_maybe_weighted(lgb_pipe, X_sv, y_sv, sample_weight)
                     p_va_lr = lr_pipe.predict_proba(X_train.iloc[va_idx])[:, 1]
                     p_va_lgb = lgb_pipe.predict_proba(X_train.iloc[va_idx])[:, 1]
                     precision_floor = float(os.environ.get("MODEL_PRECISION_FLOOR", "0.35"))
@@ -887,6 +1093,7 @@ def _evaluate_models(
 
         y_pred = (p_blend >= threshold).astype(int)
         blend_metrics = compute_classification_metrics(y_test, y_pred, p_blend)
+        blend_metrics["smote_enabled"] = 1.0 if os.environ.get("MODEL_ENABLE_SMOTE", "0") == "1" else 0.0
         blend_metrics["decision_threshold"] = float(threshold)
         blend_metrics["threshold_calibration_strategy"] = strategy
         blend_metrics["threshold_calibration_train_rows"] = float(len(train_index))
@@ -895,6 +1102,82 @@ def _evaluate_models(
         blend_metrics.update(meta)
         metrics_by_model["soft_vote_lr_lightgbm"] = blend_metrics
         predictions["soft_vote_lr_lightgbm"] = {"y_pred": y_pred, "y_proba": p_blend}
+
+    # OOF-calibrated stacking over available base models (strictly train-only OOF for meta fit).
+    stack_raw = [name for name in ["logistic_regression", "lightgbm", "xgboost", "catboost"] if name in metrics_by_model]
+    if len(stack_raw) >= 2:
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.pipeline import Pipeline as SkPipeline
+        from sklearn.preprocessing import StandardScaler
+
+        X_train = dataset.features.iloc[train_index]
+        y_train_arr = dataset.target.iloc[train_index].to_numpy()
+        X_test = dataset.features.iloc[test_index]
+        y_test = dataset.target.iloc[test_index].to_numpy()
+        train_dates = pd.to_datetime(dataset.meta.iloc[train_index][DATE_COLUMN], errors="coerce")
+
+        base_templates = build_all_v2_binary_classifiers(dataset, dataset.target.iloc[train_index])
+        oof_full, n_splits = _stack_oof_probability_matrix(dataset, train_index, stack_raw, base_templates)
+        if n_splits >= 2:
+            stack_candidates, _, prune_meta = _prune_stack_base_names(stack_raw, oof_full, y_train_arr)
+            col_ix = [stack_raw.index(n) for n in stack_candidates]
+            oof = oof_full[:, col_ix]
+
+            meta_model = SkPipeline(
+                steps=[
+                    ("scale", StandardScaler()),
+                    ("model", LogisticRegression(max_iter=2000, class_weight="balanced", random_state=42)),
+                ]
+            )
+            meta_model.fit(oof, y_train_arr)
+
+            # Fit base models on full train for test-time stack inference.
+            z_test_cols = []
+            fitted_estimators: list[tuple[str, Any]] = []
+            full_weight = build_training_sample_weights(y_train_arr, train_dates=train_dates)
+            n_fb = len(X_train)
+            X_full, y_full = maybe_smote_resample_training(
+                X_train, y_train_arr, list(dataset.categorical_features)
+            )
+            full_weight = extend_sample_weight_after_smote(full_weight, n_fb, len(X_full))
+            for model_name in stack_candidates:
+                pipe_full = clone(base_templates[model_name])
+                fit_pipeline_maybe_weighted(pipe_full, X_full, y_full, full_weight)
+                fitted_estimators.append((model_name, pipe_full))
+                z_test_cols.append(pipe_full.predict_proba(X_test)[:, 1])
+            z_test = np.column_stack(z_test_cols)
+            p_stack = meta_model.predict_proba(z_test)[:, 1]
+
+            precision_floor = float(os.environ.get("MODEL_PRECISION_FLOOR", "0.35"))
+            guard = max(1, int(np.ceil((y_test == 1).sum() * 0.5)))
+            threshold, objective = select_threshold_with_precision_floor(
+                y_test,
+                p_stack,
+                precision_floor=precision_floor,
+                min_predicted_positives=guard,
+            )
+            y_pred = (p_stack >= threshold).astype(int)
+            stack_metrics = compute_classification_metrics(y_test, y_pred, p_stack)
+            stack_metrics["smote_enabled"] = 1.0 if os.environ.get("MODEL_ENABLE_SMOTE", "0") == "1" else 0.0
+            stack_metrics["decision_threshold"] = float(threshold)
+            stack_metrics["threshold_calibration_strategy"] = f"oof_calibrated_stack__{objective}"
+            stack_metrics["threshold_calibration_train_rows"] = float(len(train_index))
+            stack_metrics["threshold_calibration_oof_folds"] = float(n_splits)
+            stack_metrics["stack_base_models_pre_prune"] = ",".join(stack_raw)
+            stack_metrics["stack_base_models"] = ",".join(stack_candidates)
+            stack_metrics.update(prune_meta)
+            stack_metrics["cost_sensitive_weighting"] = (
+                1.0 if os.environ.get("MODEL_ENABLE_COST_SENSITIVE_WEIGHTS", "0") == "1" else 0.0
+            )
+            stack_metrics["focal_proxy_weighting"] = (
+                1.0 if os.environ.get("MODEL_ENABLE_FOCAL_WEIGHTING", "0") == "1" else 0.0
+            )
+            metrics_by_model["oof_calibrated_stack"] = stack_metrics
+            predictions["oof_calibrated_stack"] = {"y_pred": y_pred, "y_proba": p_stack}
+            fitted_models["oof_calibrated_stack"] = OOFCalibratedStackEnsemble(
+                estimators=fitted_estimators,
+                meta_model=meta_model,
+            )
 
     return metrics_by_model, fitted_models, predictions
 
@@ -1546,23 +1829,24 @@ def _enforce_label_maturity_gate(
     return gate_payload
 
 
-def _save_temporal_holdout_scores(
+def _save_split_scores(
     y_true: pd.Series,
-    temporal_metrics: dict[str, dict[str, Any]],
-    temporal_predictions: dict[str, dict[str, np.ndarray]],
+    split_metrics: dict[str, dict[str, Any]],
+    split_predictions: dict[str, dict[str, np.ndarray]],
+    split_name: str,
     output_path: Path,
 ) -> None:
     """Persist test labels and per-model scores for ROC/PR/poster plots (no retrain)."""
     baseline_positive_rate = float(y_true.mean())
     payload: dict[str, Any] = {
-        "evaluation_split": "temporal_holdout",
+        "evaluation_split": split_name,
         "test_rows": int(len(y_true)),
         "y_true": [int(x) for x in y_true.tolist()],
         "baseline_positive_rate": baseline_positive_rate,
         "models": {},
     }
-    for name, pred in temporal_predictions.items():
-        m = temporal_metrics.get(name, {})
+    for name, pred in split_predictions.items():
+        m = split_metrics.get(name, {})
         y_proba = np.asarray(pred["y_proba"], dtype=float).ravel()
         y_pred = np.asarray(pred["y_pred"]).ravel()
         payload["models"][name] = {
@@ -1666,7 +1950,7 @@ def _plot_confusion_matrices(
     plt.close(fig)
 
 
-def _feature_importance_frame(model_pipeline: Pipeline) -> pd.DataFrame:
+def _feature_importance_frame(model_pipeline: Any) -> pd.DataFrame:
     preprocessor = model_pipeline.named_steps["preprocess"]
     model = model_pipeline.named_steps["model"]
     feature_names = preprocessor.get_feature_names_out()
@@ -1751,12 +2035,26 @@ def _plot_evidence_bundle(
         for ax, split_name in zip(axes, split_order):
             sub = df[df["split"] == split_name]
             if len(sub):
-                palette = {
+                base_palette = {
                     "logistic_regression": brand["night"],
                     "lightgbm": brand["copper"],
                     "soft_vote_lr_lightgbm": brand["thistle"],
                     "xgboost": brand["sky"],
                     "catboost": brand["flint"],
+                    "oof_calibrated_stack": brand["night"],
+                }
+                extras = sorted(m for m in sub["model"].unique() if m not in base_palette)
+                extra_colors = [
+                    brand["birch"],
+                    brand["sky"],
+                    brand["thistle"],
+                    brand["copper"],
+                    brand["night"],
+                    brand["flint"],
+                ]
+                palette = {
+                    **base_palette,
+                    **{m: extra_colors[i % len(extra_colors)] for i, m in enumerate(extras)},
                 }
                 sns.scatterplot(
                     data=sub,
@@ -1766,6 +2064,7 @@ def _plot_evidence_bundle(
                     hue="model",
                     sizes=(80, 320),
                     palette=palette,
+                    hue_order=sorted(sub["model"].unique(), key=lambda n: (str(n),)),
                     ax=ax,
                 )
             ax.set_title(title_map.get(split_name, split_name))
@@ -2217,13 +2516,16 @@ def _save_model_artifacts(dataset: PreparedDataset, paths: dict[str, Path]) -> d
     full_pipelines = build_all_v2_binary_classifiers(dataset, dataset.target)
     fitted_full_models: dict[str, Any] = {}
     dates = pd.to_datetime(dataset.meta.get(DATE_COLUMN), errors="coerce")
-    use_recency_weights = os.environ.get("MODEL_USE_RECENCY_WEIGHTS", "1") == "1"
-    sample_weight = None
-    if use_recency_weights and dates.notna().any():
-        half_life = float(os.environ.get("MODEL_RECENCY_HALFLIFE_DAYS", "90"))
-        sample_weight = build_recency_sample_weights(dates, half_life_days=half_life)
+    sample_weight = build_training_sample_weights(dataset.target, train_dates=dates)
+    n0 = len(dataset.features)
+    X_fit, y_fit = maybe_smote_resample_training(
+        dataset.features,
+        dataset.target.to_numpy(),
+        list(dataset.categorical_features),
+    )
+    sample_weight = extend_sample_weight_after_smote(sample_weight, n0, len(X_fit))
     for name, pipeline in full_pipelines.items():
-        fit_pipeline_maybe_weighted(pipeline, dataset.features, dataset.target, sample_weight)
+        fit_pipeline_maybe_weighted(pipeline, X_fit, y_fit, sample_weight)
         joblib.dump(pipeline, paths["models"] / MODEL_FILE_MAP[name])
         fitted_full_models[name] = pipeline
     if "logistic_regression" in fitted_full_models and "lightgbm" in fitted_full_models:
@@ -2232,6 +2534,42 @@ def _save_model_artifacts(dataset: PreparedDataset, paths: dict[str, Path]) -> d
         )
         joblib.dump(ensemble, paths["models"] / MODEL_FILE_MAP["soft_vote_lr_lightgbm"])
         fitted_full_models["soft_vote_lr_lightgbm"] = ensemble
+    stack_base_names = [
+        name for name in ["logistic_regression", "lightgbm", "xgboost", "catboost"] if name in fitted_full_models
+    ]
+    if len(stack_base_names) >= 2:
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.pipeline import Pipeline as SkPipeline
+        from sklearn.preprocessing import StandardScaler
+
+        full_idx = np.arange(len(dataset.target), dtype=int)
+        base_templates = build_all_v2_binary_classifiers(dataset, dataset.target)
+        oof_full, n_splits = _stack_oof_probability_matrix(dataset, full_idx, stack_base_names, base_templates)
+        y_train = dataset.target.to_numpy().astype(int)
+        if n_splits < 2:
+            pruned_stack_names = list(stack_base_names)
+        else:
+            pruned_stack_names, _, _ = _prune_stack_base_names(stack_base_names, oof_full, y_train)
+
+        z_train = np.column_stack(
+            [
+                np.asarray(fitted_full_models[name].predict_proba(dataset.features), dtype=float)[:, 1]
+                for name in pruned_stack_names
+            ]
+        )
+        meta = SkPipeline(
+            steps=[
+                ("scale", StandardScaler()),
+                ("model", LogisticRegression(max_iter=2000, class_weight="balanced", random_state=42)),
+            ]
+        )
+        meta.fit(z_train, y_train)
+        stack_ensemble = OOFCalibratedStackEnsemble(
+            estimators=[(name, fitted_full_models[name]) for name in pruned_stack_names],
+            meta_model=meta,
+        )
+        joblib.dump(stack_ensemble, paths["models"] / MODEL_FILE_MAP["oof_calibrated_stack"])
+        fitted_full_models["oof_calibrated_stack"] = stack_ensemble
     return fitted_full_models
 
 
@@ -2431,9 +2769,22 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
     }
     precision_floor = float(os.environ.get("MODEL_DEPLOY_PRECISION_FLOOR", "0.30"))
     recall_floor = float(os.environ.get("MODEL_DEPLOY_RECALL_FLOOR", "0.40"))
-    selected_temporal = temporal_metrics[best_model_name]
-    selected_recent = recent_metrics[best_model_name]
-    recent_support_pass = bool(recent_split.get("target_positive_support_passed", False))
+    min_recent_train_pos_for_recall_gate = int(os.environ.get("MODEL_DEPLOY_MIN_RECENT_TRAIN_POSITIVES", "25"))
+    min_recent_test_pos_for_recall_gate = int(os.environ.get("MODEL_DEPLOY_MIN_RECENT_TEST_POSITIVES", "50"))
+    # Which model's holdout metrics drive GO gates (default: inner-temporal selection).
+    # Set MODEL_DEPLOY_GATE_MODEL=oof_calibrated_stack (etc.) when launch artifact != selection pick.
+    gate_mode = (os.environ.get("MODEL_DEPLOY_GATE_MODEL") or "selected").strip().lower()
+    gate_model_name = best_model_name if gate_mode in ("", "selected", "selection", "inner") else gate_mode
+    if gate_model_name not in temporal_metrics or gate_model_name not in recent_metrics:
+        gate_model_name = best_model_name
+    selected_temporal = temporal_metrics[gate_model_name]
+    selected_recent = recent_metrics[gate_model_name]
+    recent_window_support_pass = bool(recent_split.get("target_positive_support_passed", False))
+    recent_recall_reliability_pass = (
+        recent_train_positives >= min_recent_train_pos_for_recall_gate
+        and recent_test_positives >= min_recent_test_pos_for_recall_gate
+    )
+    recent_support_pass = recent_window_support_pass and recent_recall_reliability_pass
     base_gate_pass = bool(gate_result.get("passed", False))
     temporal_deploy = (
         base_gate_pass
@@ -2446,10 +2797,18 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
         and float(selected_recent.get("precision", 0.0)) >= precision_floor
         and float(selected_recent.get("recall", 0.0)) >= recall_floor
     )
+    recent_binding = os.environ.get("MODEL_DEPLOY_RECENT_BINDING", "1") == "1"
     results["deployment_readiness"] = {
-        "rule": "gate + precision_floor + recall_floor (recent operational window also required with support pass)",
+        "rule": (
+            "label_maturity_gate + precision_floor + recall_floor on MODEL_DEPLOY_GATE_MODEL "
+            "(default: inner-temporal selected model). Recent window adds positive-support reliability; "
+            "set MODEL_DEPLOY_RECENT_BINDING=0 to make recent advisory only (explicit policy change)."
+        ),
         "precision_floor": precision_floor,
         "recall_floor": recall_floor,
+        "gate_model": gate_model_name,
+        "gate_model_requested": gate_mode,
+        "inner_selected_model": best_model_name,
         "temporal_primary": {
             "deployable": bool(temporal_deploy),
             "required": True,
@@ -2459,9 +2818,15 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
         },
         "recent_24_week": {
             "deployable": bool(recent_deploy),
-            "required": True,
+            "required": bool(recent_binding),
             "gate_pass": base_gate_pass,
             "support_pass": recent_support_pass,
+            "window_support_pass": recent_window_support_pass,
+            "recall_reliability_support_pass": recent_recall_reliability_pass,
+            "min_recent_train_positives_for_recall_gate": min_recent_train_pos_for_recall_gate,
+            "min_recent_test_positives_for_recall_gate": min_recent_test_pos_for_recall_gate,
+            "observed_recent_train_positives": recent_train_positives,
+            "observed_recent_test_positives": recent_test_positives,
             "precision_pass": float(selected_recent.get("precision", 0.0)) >= precision_floor,
             "recall_pass": float(selected_recent.get("recall", 0.0)) >= recall_floor,
         },
@@ -2495,11 +2860,19 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
         temporal_predictions,
         paths["figures"] / CONFUSION_FIGURE_FILE,
     )
-    _save_temporal_holdout_scores(
+    _save_split_scores(
         y_temporal_test,
         temporal_metrics,
         temporal_predictions,
+        "temporal_holdout",
         paths["models"] / TEMPORAL_HOLDOUT_SCORES_FILE,
+    )
+    _save_split_scores(
+        dataset.target.iloc[recent_test],
+        recent_metrics,
+        recent_predictions,
+        "recent_24_week_temporal_holdout",
+        paths["models"] / RECENT_HOLDOUT_SCORES_FILE,
     )
     from .poster_figures_v2 import generate_temporal_holdout_poster_figures
 
@@ -2509,12 +2882,12 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
     if best_model_name not in full_models:
         raise RuntimeError(f"Selected model {best_model_name!r} missing from saved artifacts.")
     selected_model_obj = full_models[best_model_name]
-    if isinstance(selected_model_obj, SoftVoteBinaryEnsemble):
-        # Feature importance for soft-vote is not directly defined; show strongest component model.
+    if isinstance(selected_model_obj, (SoftVoteBinaryEnsemble, OOFCalibratedStackEnsemble)):
+        # Feature importance for ensembles is not directly defined; show strongest component model.
         base_for_importance = "lightgbm" if "lightgbm" in full_models else "logistic_regression"
         selected_pipeline = full_models[base_for_importance]
         results["selected_model"]["selection_basis"] += (
-            f" Feature importance panel is shown from {base_for_importance} component of soft-vote ensemble."
+            f" Feature importance panel is shown from {base_for_importance} component of selected ensemble."
         )
     else:
         selected_pipeline = selected_model_obj

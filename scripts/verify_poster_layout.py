@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-Guardrail: section headings must not overlap their body text boxes in DS_Capstone_Poster_FINAL.pptx.
+Guardrail: section headings must not overlap their body text boxes in the built poster PPTX.
 
 Run after build_poster.py. Uses the same pairs/gap as poster_layout.py.
+Default file: DS_Capstone_Poster_FINAL.pptx. Override with POSTER_PPTX_OUTPUT (e.g. script copy).
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -21,7 +23,7 @@ from poster_layout import (
     LAYOUT_VERIFY_TOLERANCE_EMU,
 )
 
-PPTX = REPO / "DS_Capstone_Poster_FINAL.pptx"
+PPTX = REPO / os.environ.get("POSTER_PPTX_OUTPUT", "DS_Capstone_Poster_FINAL.pptx")
 
 
 def _shape_bottom(shape) -> int:

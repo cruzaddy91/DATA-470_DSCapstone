@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Verify DS_Capstone_Poster_FINAL.pptx uses only the poster font (Latin typeface in OOXML)."""
+"""Verify the built poster PPTX uses only the poster font (Latin typeface in OOXML).
+
+Default: DS_Capstone_Poster_FINAL.pptx. Override with POSTER_PPTX_OUTPUT.
+"""
 from pathlib import Path
+import os
 import sys
 import zipfile
 import xml.etree.ElementTree as ET
 
 NS = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
 REPO = Path(__file__).resolve().parents[1]
-PPTX = REPO / "DS_Capstone_Poster_FINAL.pptx"
+PPTX = REPO / os.environ.get("POSTER_PPTX_OUTPUT", "DS_Capstone_Poster_FINAL.pptx")
 
 # Must match build_poster.py FONT and poster_matplotlib_style.POSTER_FONT
 EXPECTED = "Times New Roman"

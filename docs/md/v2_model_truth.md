@@ -40,3 +40,7 @@ Do not choose the final model from random-split results.
 2. Then estimate the size of the shortfall.
 
 The first step is the main capstone result.
+
+## Alternative: staged decision time
+
+A practical extension (not a replacement for the order–time v2 result) is a **second** classifier scored at a fixed pre–outcome time—for example, **T–k** to ship—using only features knowable by then, such as confirmed quantity and inventory or MRP style inputs. It would be evaluated with the same **temporal** train vs test rule as the main work so the comparison stays leak–safe.

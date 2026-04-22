@@ -64,6 +64,127 @@ def build_recency_sample_weights(
     return np.clip(weights, float(min_weight), float(max_weight)).to_numpy(dtype=float)
 
 
+def maybe_smote_resample_training(
+    X: pd.DataFrame,
+    y: np.ndarray | pd.Series,
+    categorical_features: list[str],
+) -> tuple[pd.DataFrame, np.ndarray]:
+    """
+    CV-safe oversampling on a training slice only (never call on test rows).
+
+    Uses SMOTENC when categorical columns are present, else SMOTE on numeric frame.
+    Controlled by MODEL_ENABLE_SMOTE=1. No-ops when disabled, single-class, or too few positives.
+    """
+    if os.environ.get("MODEL_ENABLE_SMOTE", "0") != "1":
+        return X, np.asarray(y).astype(int)
+    y_arr = np.asarray(y).astype(int)
+    if len(y_arr) == 0 or len(np.unique(y_arr)) < 2:
+        return X, y_arr
+    pos = int((y_arr == 1).sum())
+    neg = int((y_arr == 0).sum())
+    if pos < 3 or neg < 2:
+        return X, y_arr
+    k_def = int(os.environ.get("MODEL_SMOTE_K_NEIGHBORS", "5"))
+    k_eff = max(1, min(k_def, pos - 1, neg - 1))
+    cat_cols = [c for c in categorical_features if c in X.columns]
+    try:
+        if cat_cols:
+            from imblearn.over_sampling import SMOTENC
+
+            cat_idx = [X.columns.get_loc(c) for c in cat_cols]
+            sm = SMOTENC(
+                categorical_features=cat_idx,
+                random_state=42,
+                k_neighbors=k_eff,
+                sampling_strategy=os.environ.get("MODEL_SMOTE_SAMPLING_STRATEGY", "auto"),
+            )
+            Xr, yr = sm.fit_resample(X, y_arr)
+        else:
+            from imblearn.over_sampling import SMOTE
+
+            sm = SMOTE(
+                random_state=42,
+                k_neighbors=k_eff,
+                sampling_strategy=os.environ.get("MODEL_SMOTE_SAMPLING_STRATEGY", "auto"),
+            )
+            Xr, yr = sm.fit_resample(X, y_arr)
+    except Exception:
+        return X, y_arr
+    X_out = pd.DataFrame(Xr, columns=list(X.columns))
+    for col in cat_cols:
+        if col in X_out.columns:
+            X_out[col] = X_out[col].astype(str).replace({"nan": "Missing"})
+    return X_out, np.asarray(yr).astype(int)
+
+
+def extend_sample_weight_after_smote(
+    sample_weight: np.ndarray | None,
+    n_before: int,
+    n_after: int,
+) -> np.ndarray | None:
+    """Append flat weights for synthetic SMOTE rows so array length matches X after resampling."""
+    if sample_weight is None or n_after <= n_before:
+        return sample_weight
+    synth = float(os.environ.get("MODEL_SMOTE_SYNTHETIC_WEIGHT", "1.0"))
+    extra = n_after - n_before
+    base = np.asarray(sample_weight, dtype=float)
+    return np.concatenate([base, np.full(extra, synth)])
+
+
+def build_training_sample_weights(
+    y_train: pd.Series | np.ndarray,
+    *,
+    train_dates: pd.Series | np.ndarray | None = None,
+) -> np.ndarray | None:
+    """Compose recency, cost-sensitive, and focal-style proxy weights."""
+    y_arr = np.asarray(y_train).astype(int)
+    n = len(y_arr)
+    if n == 0:
+        return None
+
+    weights = np.ones(n, dtype=float)
+    use_any = False
+
+    use_recency_weights = os.environ.get("MODEL_USE_RECENCY_WEIGHTS", "1") == "1"
+    if use_recency_weights and train_dates is not None:
+        recency_half_life = float(os.environ.get("MODEL_RECENCY_HALFLIFE_DAYS", "90"))
+        weights *= build_recency_sample_weights(train_dates, half_life_days=recency_half_life)
+        use_any = True
+
+    use_cost_sensitive = os.environ.get("MODEL_ENABLE_COST_SENSITIVE_WEIGHTS", "0") == "1"
+    if use_cost_sensitive:
+        pos = int((y_arr == 1).sum())
+        neg = int((y_arr == 0).sum())
+        ratio = float(neg / max(1, pos))
+        default_pos_mult = float(np.clip(ratio, 1.0, 20.0))
+        pos_mult = float(os.environ.get("MODEL_COST_POSITIVE_MULTIPLIER", str(default_pos_mult)))
+        neg_mult = float(os.environ.get("MODEL_COST_NEGATIVE_MULTIPLIER", "1.0"))
+        weights[y_arr == 1] *= max(0.0, pos_mult)
+        weights[y_arr == 0] *= max(0.0, neg_mult)
+        use_any = True
+
+    use_focal_proxy = os.environ.get("MODEL_ENABLE_FOCAL_WEIGHTING", "0") == "1"
+    if use_focal_proxy:
+        pos = int((y_arr == 1).sum())
+        neg = int((y_arr == 0).sum())
+        imbalance = float(neg / max(1, pos))
+        gamma = float(os.environ.get("MODEL_FOCAL_GAMMA", "2.0"))
+        alpha = float(os.environ.get("MODEL_FOCAL_POSITIVE_ALPHA", "0.75"))
+        focal_pos = float(np.clip(np.power(max(1.0, imbalance), max(0.0, gamma) / 2.0), 1.0, 20.0))
+        weights[y_arr == 1] *= (1.0 - alpha) + alpha * focal_pos
+        use_any = True
+
+    if not use_any:
+        return None
+    mean_w = float(np.mean(weights))
+    if not np.isfinite(mean_w) or mean_w <= 0:
+        return None
+    weights = weights / mean_w
+    max_w = float(os.environ.get("MODEL_SAMPLE_WEIGHT_MAX_CLIP", "50.0"))
+    min_w = float(os.environ.get("MODEL_SAMPLE_WEIGHT_MIN_CLIP", "0.05"))
+    return np.clip(weights, min_w, max_w)
+
+
 def fit_pipeline_maybe_weighted(
     pipeline: Any,
     X_train: pd.DataFrame,
@@ -175,6 +296,7 @@ def threshold_from_train_oof(
     pipeline: Any,
     X_train: pd.DataFrame,
     y_train: pd.Series,
+    categorical_features: list[str] | None = None,
 ) -> tuple[float, str, dict[str, float]]:
     """
     Decision threshold from stratified K-fold OOF positive-class probabilities on train,
@@ -182,6 +304,7 @@ def threshold_from_train_oof(
     """
     from sklearn.model_selection import StratifiedKFold, train_test_split
 
+    cats = list(categorical_features or [])
     y_arr = y_train.to_numpy()
     precision_floor = float(os.environ.get("MODEL_PRECISION_FLOOR", "0.35"))
     n = len(y_arr)
@@ -195,7 +318,10 @@ def threshold_from_train_oof(
         skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=42)
         for train_rel, test_rel in skf.split(np.zeros(n), y_arr):
             pipe = clone(pipeline)
-            pipe.fit(X_train.iloc[train_rel], y_train.iloc[train_rel])
+            X_tr = X_train.iloc[train_rel]
+            y_tr = y_arr[train_rel]
+            X_tr, y_tr = maybe_smote_resample_training(X_tr, y_tr, cats)
+            pipe.fit(X_tr, y_tr)
             oof[test_rel] = pipe.predict_proba(X_train.iloc[test_rel])[:, 1]
         threshold = select_f1_max_threshold(y_arr, oof)
         meta["oof_folds"] = float(k)
@@ -216,7 +342,10 @@ def threshold_from_train_oof(
         return 0.5, "fallback_threshold_0.5_insufficient_train", meta
 
     pipe = clone(pipeline)
-    pipe.fit(X_train.iloc[tr], y_train.iloc[tr])
+    X_tr = X_train.iloc[tr]
+    y_tr = y_arr[tr]
+    X_tr, y_tr = maybe_smote_resample_training(X_tr, y_tr, cats)
+    pipe.fit(X_tr, y_tr)
     y_va = y_arr[va]
     p_va = pipe.predict_proba(X_train.iloc[va])[:, 1]
     guard_min_pred_pos = max(1, int(np.ceil((y_va == 1).sum() * 0.5)))
@@ -240,6 +369,7 @@ def threshold_from_train_temporal_tail(
     y_train: pd.Series,
     train_dates: pd.Series | np.ndarray,
     *,
+    categorical_features: list[str] | None = None,
     min_val_days: int = 28,
     min_val_positives: int = 10,
     min_calibration_positives: int = 25,
@@ -253,10 +383,13 @@ def threshold_from_train_temporal_tail(
     sparse_fallback_max = float(os.environ.get("MODEL_SPARSE_FALLBACK_MAX_THRESHOLD", "0.50"))
     sparse_fallback_min = float(os.environ.get("MODEL_SPARSE_FALLBACK_MIN_THRESHOLD", "0.01"))
     meta: dict[str, float] = {}
+    cats = list(categorical_features or [])
 
     valid = dates.notna().to_numpy()
     if valid.sum() < 2:
-        threshold, strategy, fallback_meta = threshold_from_train_oof(pipeline, X_train, y_train)
+        threshold, strategy, fallback_meta = threshold_from_train_oof(
+            pipeline, X_train, y_train, categorical_features=cats
+        )
         threshold = float(np.clip(threshold, sparse_fallback_min, sparse_fallback_max))
         fallback_meta["temporal_tail_fallback"] = 1.0
         fallback_meta["sparse_calibration_fallback_min_threshold"] = float(sparse_fallback_min)
@@ -330,14 +463,18 @@ def threshold_from_train_temporal_tail(
                     break
 
     if len(tr_idx) == 0 or len(va_idx) == 0:
-        threshold, strategy, fallback_meta = threshold_from_train_oof(pipeline, X_train, y_train)
+        threshold, strategy, fallback_meta = threshold_from_train_oof(
+            pipeline, X_train, y_train, categorical_features=cats
+        )
         threshold = float(np.clip(threshold, sparse_fallback_min, sparse_fallback_max))
         fallback_meta["temporal_tail_fallback"] = 1.0
         fallback_meta["sparse_calibration_fallback_min_threshold"] = float(sparse_fallback_min)
         fallback_meta["sparse_calibration_fallback_max_threshold"] = float(sparse_fallback_max)
         return threshold, f"{strategy}_fallback_empty_split", fallback_meta
     if pd.Series(y_arr[tr_idx]).nunique() < 2:
-        threshold, strategy, fallback_meta = threshold_from_train_oof(pipeline, X_train, y_train)
+        threshold, strategy, fallback_meta = threshold_from_train_oof(
+            pipeline, X_train, y_train, categorical_features=cats
+        )
         threshold = float(np.clip(threshold, sparse_fallback_min, sparse_fallback_max))
         fallback_meta["temporal_tail_fallback"] = 1.0
         fallback_meta["temporal_tail_single_class_train"] = 1.0
@@ -345,14 +482,17 @@ def threshold_from_train_temporal_tail(
         fallback_meta["sparse_calibration_fallback_max_threshold"] = float(sparse_fallback_max)
         return threshold, f"{strategy}_fallback_single_class_train", fallback_meta
 
-    use_recency_weights = os.environ.get("MODEL_USE_RECENCY_WEIGHTS", "1") == "1"
-    recency_half_life = float(os.environ.get("MODEL_RECENCY_HALFLIFE_DAYS", "90"))
-    sample_weight = None
-    if use_recency_weights:
-        tr_dates = dates.iloc[tr_idx]
-        sample_weight = build_recency_sample_weights(tr_dates, half_life_days=recency_half_life)
+    X_tr_raw = X_train.iloc[tr_idx]
+    y_tr_raw = y_train.iloc[tr_idx].to_numpy()
+    sample_weight = build_training_sample_weights(
+        y_train.iloc[tr_idx],
+        train_dates=dates.iloc[tr_idx],
+    )
+    n_before = len(X_tr_raw)
+    X_tr, y_tr = maybe_smote_resample_training(X_tr_raw, y_tr_raw, cats)
+    sample_weight = extend_sample_weight_after_smote(sample_weight, n_before, len(X_tr))
     pipe = clone(pipeline)
-    fit_pipeline_maybe_weighted(pipe, X_train.iloc[tr_idx], y_train.iloc[tr_idx], sample_weight)
+    fit_pipeline_maybe_weighted(pipe, X_tr, y_tr, sample_weight)
     y_va = y_arr[va_idx]
     p_va = pipe.predict_proba(X_train.iloc[va_idx])[:, 1]
     val_pos_count = int((y_va == 1).sum())
@@ -364,6 +504,7 @@ def threshold_from_train_temporal_tail(
             pipeline,
             X_train,
             y_train,
+            categorical_features=cats,
         )
         fallback_thr = float(np.clip(fallback_thr, sparse_fallback_min, sparse_fallback_max))
         meta["val_rows"] = float(len(va_idx))
@@ -396,8 +537,9 @@ def threshold_from_train_temporal_tail(
     meta["val_window_days"] = float(int((max_date - used_cutoff).days))
     meta["val_unique_dates"] = float(int(pd.Index(dates.iloc[va_idx]).nunique()))
     meta["val_cutoff_shift_days"] = float(int((chosen_cutoff - used_cutoff).days))
-    meta["recency_weighting"] = 1.0 if use_recency_weights else 0.0
-    meta["recency_half_life_days"] = float(recency_half_life) if use_recency_weights else 0.0
+    meta["recency_weighting"] = 1.0 if os.environ.get("MODEL_USE_RECENCY_WEIGHTS", "1") == "1" else 0.0
+    meta["cost_sensitive_weighting"] = 1.0 if os.environ.get("MODEL_ENABLE_COST_SENSITIVE_WEIGHTS", "0") == "1" else 0.0
+    meta["focal_proxy_weighting"] = 1.0 if os.environ.get("MODEL_ENABLE_FOCAL_WEIGHTING", "0") == "1" else 0.0
     return threshold, f"{used_strategy}__{objective}", meta
 
 
@@ -417,6 +559,7 @@ def evaluate_classifier_train_test_split(
     y_train = dataset.target.iloc[train_index]
     X_test = dataset.features.iloc[test_index]
     y_test = dataset.target.iloc[test_index]
+    cats = list(getattr(dataset, "categorical_features", []) or [])
 
     train_dates = None
     if threshold_mode == "temporal_tail":
@@ -426,24 +569,100 @@ def evaluate_classifier_train_test_split(
             X_train,
             y_train,
             train_dates,
+            categorical_features=cats,
         )
     else:
-        threshold, strategy, thresh_meta = threshold_from_train_oof(pipeline, X_train, y_train)
+        threshold, strategy, thresh_meta = threshold_from_train_oof(
+            pipeline, X_train, y_train, categorical_features=cats
+        )
 
-    sample_weight = None
-    use_recency_weights = os.environ.get("MODEL_USE_RECENCY_WEIGHTS", "1") == "1"
-    if train_dates is not None and use_recency_weights:
-        recency_half_life = float(os.environ.get("MODEL_RECENCY_HALFLIFE_DAYS", "90"))
-        sample_weight = build_recency_sample_weights(train_dates, half_life_days=recency_half_life)
+    sample_weight = build_training_sample_weights(
+        y_train,
+        train_dates=train_dates,
+    )
+    n_before = len(X_train)
+    X_fit, y_fit = maybe_smote_resample_training(X_train, y_train.to_numpy(), cats)
+    sample_weight = extend_sample_weight_after_smote(sample_weight, n_before, len(X_fit))
     pipeline_final = clone(pipeline)
-    fit_pipeline_maybe_weighted(pipeline_final, X_train, y_train, sample_weight)
+    fit_pipeline_maybe_weighted(pipeline_final, X_fit, y_fit, sample_weight)
     y_proba = pipeline_final.predict_proba(X_test)[:, 1]
     y_pred = (y_proba >= threshold).astype(int)
 
+    def _cohort_thresholds_from_train_oof(
+        *,
+        X_tr: pd.DataFrame,
+        y_tr: pd.Series,
+        cohort_tr: pd.Series,
+        base_pipeline: Any,
+        global_threshold: float,
+    ) -> dict[str, float]:
+        from sklearn.model_selection import StratifiedKFold
+
+        y_arr = np.asarray(y_tr).astype(int)
+        if len(np.unique(y_arr)) < 2:
+            return {}
+        min_count = int(np.bincount(y_arr, minlength=2).min())
+        if min_count < 2:
+            return {}
+        n_splits = max(2, min(5, min_count))
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        oof = np.zeros(len(y_arr), dtype=float)
+        for tr_idx, va_idx in cv.split(X_tr, y_arr):
+            p = clone(base_pipeline)
+            Xa, ya = maybe_smote_resample_training(
+                X_tr.iloc[tr_idx],
+                y_arr[tr_idx],
+                list(getattr(dataset, "categorical_features", []) or []),
+            )
+            p.fit(Xa, ya)
+            oof[va_idx] = p.predict_proba(X_tr.iloc[va_idx])[:, 1]
+
+        min_rows = int(os.environ.get("MODEL_COHORT_THRESHOLD_MIN_ROWS", "120"))
+        min_pos = int(os.environ.get("MODEL_COHORT_THRESHOLD_MIN_POSITIVES", "8"))
+        precision_floor = float(os.environ.get("MODEL_COHORT_THRESHOLD_PRECISION_FLOOR", "0.30"))
+        thresholds: dict[str, float] = {}
+        cohort_series = cohort_tr.fillna("__MISSING__").astype(str)
+        for key in pd.Index(cohort_series.unique()):
+            idx = np.flatnonzero(cohort_series.to_numpy() == key)
+            y_c = y_arr[idx]
+            if len(idx) < min_rows or int((y_c == 1).sum()) < min_pos:
+                continue
+            t, _ = select_threshold_with_precision_floor(
+                y_c,
+                oof[idx],
+                precision_floor=precision_floor,
+                min_predicted_positives=max(1, int(np.ceil((y_c == 1).sum() * 0.5))),
+            )
+            # Guardrail: avoid extreme divergence from global policy.
+            t = float(np.clip(t, max(0.05, global_threshold - 0.25), min(0.95, global_threshold + 0.25)))
+            thresholds[str(key)] = t
+        return thresholds
+
+    enable_cohort_thresholds = os.environ.get("MODEL_ENABLE_COHORT_THRESHOLDS", "1") == "1"
+    cohort_col = os.environ.get("MODEL_COHORT_THRESHOLD_COLUMN", "plant_code")
+    cohort_thresholds: dict[str, float] = {}
+    if enable_cohort_thresholds and cohort_col in dataset.meta.columns:
+        cohort_train = dataset.meta.iloc[train_index][cohort_col]
+        cohort_test = dataset.meta.iloc[test_index][cohort_col].fillna("__MISSING__").astype(str)
+        cohort_thresholds = _cohort_thresholds_from_train_oof(
+            X_tr=X_train,
+            y_tr=y_train,
+            cohort_tr=cohort_train,
+            base_pipeline=pipeline,
+            global_threshold=float(threshold),
+        )
+        if cohort_thresholds:
+            test_thresholds = cohort_test.map(lambda key: cohort_thresholds.get(str(key), float(threshold))).to_numpy(dtype=float)
+            y_pred = (y_proba >= test_thresholds).astype(int)
+
     metrics = compute_classification_metrics(y_test, y_pred, y_proba)
+    metrics["smote_enabled"] = 1.0 if os.environ.get("MODEL_ENABLE_SMOTE", "0") == "1" else 0.0
     metrics["decision_threshold"] = threshold
     metrics["threshold_calibration_strategy"] = strategy
     metrics["threshold_calibration_train_rows"] = float(len(train_index))
     for key, value in thresh_meta.items():
         metrics[f"threshold_calibration_{key}"] = float(value)
+    metrics["threshold_calibration_cohort_thresholds_enabled"] = float(1.0 if enable_cohort_thresholds else 0.0)
+    metrics["threshold_calibration_cohort_thresholds_count"] = float(len(cohort_thresholds))
+    metrics["threshold_calibration_cohort_thresholds_column"] = cohort_col if enable_cohort_thresholds else ""
     return metrics, y_pred, y_proba, pipeline_final

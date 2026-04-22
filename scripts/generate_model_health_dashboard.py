@@ -9,6 +9,53 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+# Stable cockpit ordering (then any extra model keys alphabetically).
+_COCKPIT_MODEL_ORDER: tuple[str, ...] = (
+    "logistic_regression",
+    "lightgbm",
+    "xgboost",
+    "catboost",
+    "soft_vote_lr_lightgbm",
+    "oof_calibrated_stack",
+)
+
+
+def _cockpit_rank(name: str) -> int:
+    try:
+        return _COCKPIT_MODEL_ORDER.index(name)
+    except ValueError:
+        return len(_COCKPIT_MODEL_ORDER)
+
+
+def _ordered_models(models: dict[str, Any]) -> dict[str, Any]:
+    """Return same model metrics in a stable display order (all keys retained)."""
+    if not models:
+        return {}
+    ordered: dict[str, Any] = {}
+    for key in _COCKPIT_MODEL_ORDER:
+        if key in models:
+            ordered[key] = models[key]
+    for key in sorted(models.keys()):
+        if key not in ordered:
+            ordered[key] = models[key]
+    return ordered
+
+
+def _all_cockpit_model_names(metrics: dict[str, Any]) -> list[str]:
+    """Union of model names across splits and CI blocks, cockpit-sorted."""
+    names: set[str] = set()
+    for split_key in ("temporal_holdout", "group_holdout", "recent_24_week_temporal_holdout"):
+        block = metrics.get(split_key) or {}
+        m = block.get("models") or {}
+        if isinstance(m, dict):
+            names |= set(m.keys())
+    ci_root = metrics.get("confidence_intervals") or {}
+    for ck in ("temporal_primary", "recent_24_week"):
+        c = ci_root.get(ck) or {}
+        if isinstance(c, dict):
+            names |= set(c.keys())
+    return sorted(names, key=lambda n: (_cockpit_rank(n), n))
+
 
 def _fmt(x: Any, digits: int = 4) -> str:
     if isinstance(x, (int, float)):
@@ -31,7 +78,7 @@ def _metric_td(value: Any, *, norm: float | None = None) -> str:
 
 def _models_table_rows(models: dict[str, Any]) -> str:
     rows: list[str] = []
-    for name, m in models.items():
+    for name, m in _ordered_models(models).items():
         rows.append(
             "<tr>"
             f"<td>{name}</td>"
@@ -79,7 +126,7 @@ def _lift_rows(lift: dict[str, Any]) -> str:
         m = max_abs.get(metric, 1.0)
         return max(0.0, min(1.0, 0.5 + 0.5 * (float(value) / m)))
 
-    for name, m in lift.items():
+    for name, m in _ordered_models(lift).items():
         rows.append(
             "<tr>"
             f"<td>{name}</td>"
@@ -143,7 +190,7 @@ def _models_dash(models: dict[str, Any], section_id: str) -> str:
     if not models:
         return "<div class='dash-empty'>No model rows found.</div>"
     cards: list[str] = []
-    for name, m in models.items():
+    for name, m in _ordered_models(models).items():
         f1 = float(m.get("f1", 0.0))
         pr_auc = float(m.get("pr_auc", 0.0))
         cards.append(
@@ -206,7 +253,7 @@ def _lift_dash(lift: dict[str, Any]) -> str:
         return max(0.0, min(1.0, 0.5 + 0.5 * (float(val) / m)))
 
     cards: list[str] = []
-    for name, m in lift.items():
+    for name, m in _ordered_models(lift).items():
         cards.append(
             "<div class='dash-card'>"
             f"<div class='dash-title'>{name}</div>"
@@ -221,9 +268,10 @@ def _lift_dash(lift: dict[str, Any]) -> str:
 
 
 def _pick_selected_name(models: dict[str, Any], preferred: str | None) -> str | None:
-    if preferred and preferred in models:
+    ordered = _ordered_models(models)
+    if preferred and preferred in ordered:
         return preferred
-    for k in models:
+    for k in ordered:
         return k
     return None
 
@@ -242,11 +290,7 @@ def _instrument_model_panel(models: dict[str, Any], preferred: str | None) -> st
         f"{_gauge_chip('PR-AUC', m.get('pr_auc'), norm=float(m.get('pr_auc', 0.0)))}"
     )
     rails = []
-    for name, vals in sorted(
-        models.items(),
-        key=lambda kv: float(kv[1].get("f1", 0.0)),
-        reverse=True,
-    ):
+    for name, vals in _ordered_models(models).items():
         f1 = float(vals.get("f1", 0.0))
         width = max(2.0, min(100.0, f1 * 100.0))
         rails.append(
@@ -370,7 +414,7 @@ def _deploy_cards(deploy: dict[str, Any]) -> str:
 
 
 def _section(title: str, split_block: dict[str, Any], section_id: str, selected_model_name: str | None) -> str:
-    models = split_block.get("models", {})
+    models = _ordered_models(split_block.get("models", {}) or {})
     baselines = split_block.get("baselines", {})
     lift = split_block.get("model_vs_baseline_lift", {})
     return f"""
@@ -416,14 +460,24 @@ def _section(title: str, split_block: dict[str, Any], section_id: str, selected_
 """
 
 
-def _ci_rows(ci_block: dict[str, Any]) -> str:
-    if not ci_block:
-        return "<tr><td colspan='4'>No CI data.</td></tr>"
+def _ci_rows(ci_block: dict[str, Any], model_names: list[str]) -> str:
+    """One row per evaluated model; missing CI shows as dash (no silent omission)."""
+    if not model_names:
+        return "<tr><td colspan='4'>No models evaluated.</td></tr>"
     rows: list[str] = []
-    for model_name, metrics in ci_block.items():
-        p = metrics.get("precision", {})
-        r = metrics.get("recall", {})
-        f = metrics.get("f1", {})
+    for model_name in model_names:
+        metrics = ci_block.get(model_name) if isinstance(ci_block, dict) else None
+        if not isinstance(metrics, dict):
+            rows.append(
+                "<tr>"
+                f"<td>{model_name}</td>"
+                "<td>-</td><td>-</td><td>-</td>"
+                "</tr>"
+            )
+            continue
+        p = metrics.get("precision", {}) or {}
+        r = metrics.get("recall", {}) or {}
+        f = metrics.get("f1", {}) or {}
         rows.append(
             "<tr>"
             f"<td>{model_name}</td>"
@@ -435,14 +489,25 @@ def _ci_rows(ci_block: dict[str, Any]) -> str:
     return "\n".join(rows)
 
 
-def _ci_dash(ci_block: dict[str, Any]) -> str:
-    if not ci_block:
-        return "<div class='dash-empty'>No CI data.</div>"
+def _ci_dash(ci_block: dict[str, Any], model_names: list[str]) -> str:
+    if not model_names:
+        return "<div class='dash-empty'>No models evaluated.</div>"
     cards: list[str] = []
-    for model_name, metrics in ci_block.items():
-        p = metrics.get("precision", {})
-        r = metrics.get("recall", {})
-        f = metrics.get("f1", {})
+    for model_name in model_names:
+        metrics = ci_block.get(model_name) if isinstance(ci_block, dict) else None
+        if not isinstance(metrics, dict):
+            cards.append(
+                "<div class='dash-card'>"
+                f"<div class='dash-title'>{model_name}</div>"
+                "<div class='kpi-chip'><div class='kpi-label'>Precision CI</div><div class='kpi-value'>-</div></div>"
+                "<div class='kpi-chip'><div class='kpi-label'>Recall CI</div><div class='kpi-value'>-</div></div>"
+                "<div class='kpi-chip'><div class='kpi-label'>F1 CI</div><div class='kpi-value'>-</div></div>"
+                "</div>"
+            )
+            continue
+        p = metrics.get("precision", {}) or {}
+        r = metrics.get("recall", {}) or {}
+        f = metrics.get("f1", {}) or {}
         cards.append(
             "<div class='dash-card'>"
             f"<div class='dash-title'>{model_name}</div>"
@@ -489,6 +554,7 @@ def generate_dashboard(project_root: str | Path | None = None) -> Path:
     group = metrics.get("group_holdout", {})
     recent = metrics.get("recent_24_week_temporal_holdout", {})
     recent_weeks = recent.get("window_weeks", 24)
+    all_model_names = _all_cockpit_model_names(metrics)
 
     chart_categories = {
         "Governance & Readiness": [
@@ -635,6 +701,7 @@ def generate_dashboard(project_root: str | Path | None = None) -> Path:
         <span>Temporal split strategy: {temporal.get('strategy', '-')}</span>
         <span>Maturity gate pass: {gate.get('passed', '-')}</span>
         <span>Gate profile: {gate.get('profile', '-')}</span>
+        <span>Models in cockpit (union): {", ".join(all_model_names)}</span>
       </div>
       <div class="control-bar">
         <div class="control-left">View Controls</div>
@@ -671,19 +738,19 @@ def generate_dashboard(project_root: str | Path | None = None) -> Path:
         <h3>Temporal Primary</h3>
         <table>
           <thead><tr><th>Model</th><th>Precision CI</th><th>Recall CI</th><th>F1 CI</th></tr></thead>
-          <tbody>{_ci_rows(ci.get('temporal_primary', {}))}</tbody>
+          <tbody>{_ci_rows(ci.get('temporal_primary', {}), all_model_names)}</tbody>
         </table>
         <h3>Recent Operational Window</h3>
         <table>
           <thead><tr><th>Model</th><th>Precision CI</th><th>Recall CI</th><th>F1 CI</th></tr></thead>
-          <tbody>{_ci_rows(ci.get('recent_24_week', {}))}</tbody>
+          <tbody>{_ci_rows(ci.get('recent_24_week', {}), all_model_names)}</tbody>
         </table>
       </div>
       <div class="dash-view">
         <h3>Temporal Primary</h3>
-        {_ci_dash(ci.get('temporal_primary', {}))}
+        {_ci_dash(ci.get('temporal_primary', {}), all_model_names)}
         <h3>Recent Operational Window</h3>
-        {_ci_dash(ci.get('recent_24_week', {}))}
+        {_ci_dash(ci.get('recent_24_week', {}), all_model_names)}
       </div>
       <div class="instrument-view">
         <h3>Temporal Primary</h3>

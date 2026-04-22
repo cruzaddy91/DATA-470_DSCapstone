@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,7 +31,7 @@ MASTER_CSV = REPO_ROOT / "data" / "processed" / "master_order_fulfillment_modeli
 TEMPORAL_JSON = REPO_ROOT / "models" / "temporal_holdout_test_scores_v2_ordertime.json"
 FIGURES = REPO_ROOT / "output" / "figures"
 DIAGRAMS = REPO_ROOT / "poster" / "diagrams"
-PPTX_OUT = REPO_ROOT / "DS_Capstone_Poster_FINAL.pptx"
+PPTX_OUT = REPO_ROOT / os.environ.get("POSTER_PPTX_OUTPUT", "DS_Capstone_Poster_FINAL.pptx")
 MANIFEST_OUT = FIGURES / "POSTER_VISUAL_MANIFEST.json"
 
 
@@ -217,7 +218,7 @@ def build_manifest_dict() -> dict:
         "deck": {
             "builder": "build_poster.py",
             "template": "Showcase Templates.pptx",
-            "output_pptx_relative": "DS_Capstone_Poster_FINAL.pptx",
+            "output_pptx_relative": PPTX_OUT.name,
             "pptx_sha256": _sha256_file(PPTX_OUT),
         },
         "postercraft_framework": {

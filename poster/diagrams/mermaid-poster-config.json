@@ -2,7 +2,7 @@
   "theme": "base",
   "themeVariables": {
     "fontFamily": "Times New Roman, Times, Georgia, serif",
-    "fontSize": "20px",
+    "fontSize": "28px",
     "primaryColor": "#FFFFFF",
     "primaryTextColor": "#101820",
     "primaryBorderColor": "#211551",
@@ -13,8 +13,8 @@
   },
   "flowchart": {
     "curve": "basis",
-    "padding": 12,
-    "nodeSpacing": 50,
-    "rankSpacing": 55
+    "padding": 18,
+    "nodeSpacing": 70,
+    "rankSpacing": 70
   }
 }

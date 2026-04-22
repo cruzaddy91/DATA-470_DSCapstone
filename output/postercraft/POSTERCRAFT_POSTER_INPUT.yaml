@@ -1,5 +1,5 @@
 schema_version: 1
-generated_at_utc: '2026-04-21T22:19:21.659214+00:00'
+generated_at_utc: '2026-04-21T22:41:01.343695+00:00'
 repository_root: /Users/addycruz/Workspace/DATA-470_DSCapstone
 purpose: PosterCraft full-poster aesthetic generation fed by pipeline outputs. Verbatim
   metrics below are copied from CSV/JSON; chart images are matplotlib/seaborn exports—composite
@@ -189,5 +189,5 @@ mermaid_diagrams:
 deck:
   builder: build_poster.py
   template: Showcase Templates.pptx
-  output_pptx_relative: DS_Capstone_Poster_FINAL.pptx
-  pptx_sha256: b761e4f1ac5ee67fd20e72fd0540465095f1f3051d6f3b9807cb3c53ceefd5de
+  output_pptx_relative: DS_Capstone_Poster_FINAL_SCRIPT_COPY.pptx
+  pptx_sha256: 5af064ce277b9fc74d58f1a5a5dea36f47cdeff5695c2ac95a5248180f1038fe

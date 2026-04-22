@@ -1,6 +1,8 @@
+import os
 import sys
 from pathlib import Path
 
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import pandas as pd
@@ -11,11 +13,43 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 from poster_matplotlib_style import POSTER_FONT, apply_poster_matplotlib_style
+from westminster_poster_palette import (
+    BIRCH,
+    EDGE_SUBTLE,
+    FLINT,
+    NIGHT,
+    SNOW,
+    TINT_CARD_A,
+    TINT_CARD_B,
+    TINT_CARD_C,
+    TINT_CARD_D,
+    TINT_HEADER,
+    brand_metric_heatmap_cmap,
+)
+
+
+def _annot_text_color(value: float, vmin: float, vmax: float, cmap_obj) -> str:
+    """Match poster_visual_templates: light cells get Flint, dark cells Snow (Westminster legibility)."""
+    if vmax <= vmin:
+        return FLINT
+    t = (float(value) - vmin) / (vmax - vmin)
+    t = max(0.0, min(1.0, t))
+    rgba = cmap_obj(t)
+    rgb = mcolors.to_rgb(rgba)
+    lum = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
+    return SNOW if lum < 0.48 else FLINT
 
 TABLE_PATH = REPO_ROOT / "output" / "tables" / "classification_model_comparison_v2_ordertime.csv"
 FIGURES_DIR = REPO_ROOT / "output" / "figures"
 HEATMAP_PATH = FIGURES_DIR / "showcase_model_comparison_heatmap.png"
 SNAPSHOT_PATH = FIGURES_DIR / "showcase_temporal_snapshot.png"
+
+# Native size of ``ppt/media/image3.png`` on ``DS_Capstone_Poster_FINAL_SCRIPT_COPY.pptx`` (fact overlay
+# letterboxes to this box; generating at this resolution avoids heavy downscale blur).
+def _poster_heatmap_embed_px() -> tuple[int, int]:
+    w = int(os.environ.get("POSTER_HEATMAP_EMBED_W", "2821"))
+    h = int(os.environ.get("POSTER_HEATMAP_EMBED_H", "1353"))
+    return w, h
 
 
 MODEL_LABELS = {
@@ -69,8 +103,8 @@ def _add_best_outlines(ax, metric_frame: pd.DataFrame) -> None:
             1,
             1,
             fill=False,
-            edgecolor="#111827",
-            linewidth=3,
+            edgecolor=NIGHT,
+            linewidth=2.0,
         )
         ax.add_patch(rect)
 
@@ -86,14 +120,20 @@ def save_model_comparison_heatmap() -> Path:
         ordered=True,
     )
 
-    fig, axes = plt.subplots(1, 2, figsize=(13, 6.2))
+    px_w, px_h = _poster_heatmap_embed_px()
+    dpi = int(os.environ.get("POSTER_HEATMAP_DPI", "200"))
+    fig_w_in, fig_h_in = px_w / dpi, px_h / dpi
+    fig, axes = plt.subplots(1, 2, figsize=(fig_w_in, fig_h_in), facecolor="white")
+    fig.subplots_adjust(left=0.07, right=0.99, top=0.86, bottom=0.20, wspace=0.30)
     fig.suptitle(
         "Logistic vs. LightGBM — ranking metrics under stress splits (not F1 at a fixed threshold)",
         fontsize=15,
         fontweight="bold",
         y=0.98,
+        color=FLINT,
     )
 
+    brand_cmap = brand_metric_heatmap_cmap()
     for ax, (metric_key, metric_title, metric_blurb) in zip(axes, METRICS):
         piv = df.pivot(index="model_label", columns="split_label", values=metric_key).astype(float)
         row_order = [MODEL_LABELS[m] for m in POSTER_MODEL_ORDER if MODEL_LABELS[m] in piv.index]
@@ -112,48 +152,81 @@ def save_model_comparison_heatmap() -> Path:
         sns.heatmap(
             metric_frame,
             ax=ax,
-            annot=True,
-            fmt=".2f",
-            cmap="YlGnBu",
+            annot=False,
+            cmap=brand_cmap,
             vmin=vmin_m,
             vmax=vmax_m,
-            linewidths=2.0,
-            linecolor="white",
+            linewidths=1.8,
+            linecolor=SNOW,
             cbar=True,
             cbar_kws={
-                "shrink": 0.72,
-                "pad": 0.02,
+                "shrink": 0.78,
+                "pad": 0.04,
                 "label": cbar_label,
             },
-            annot_kws={"fontsize": 18, "fontweight": "bold", "color": "#111827"},
         )
+        for i in range(len(metric_frame.index)):
+            for j in range(len(metric_frame.columns)):
+                val = float(metric_frame.iloc[i, j])
+                tc = _annot_text_color(val, vmin_m, vmax_m, brand_cmap)
+                ax.text(
+                    j + 0.5,
+                    i + 0.5,
+                    f"{val:.2f}",
+                    ha="center",
+                    va="center",
+                    fontsize=17,
+                    fontweight="bold",
+                    color=tc,
+                )
         _add_best_outlines(ax, metric_frame)
-        ax.set_title(f"{metric_title}\n{metric_blurb}", fontsize=13, fontweight="bold", pad=10, color="#1B3A5C")
-        ax.set_xlabel("Holdout type (how the test set was formed)", fontsize=12, fontweight="bold")
+        ax.set_title(
+            f"{metric_title}\n{metric_blurb}", fontsize=12, fontweight="bold", pad=8, color=NIGHT
+        )
+        ax.set_xlabel("Holdout type (how the test set was formed)", fontsize=11, fontweight="bold", labelpad=6)
         ax.tick_params(axis="x", labelrotation=0, labelsize=11)
-        ax.tick_params(axis="y", labelsize=13)
+        ax.tick_params(axis="y", labelsize=12)
         ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
 
-    axes[0].set_ylabel("Model", fontsize=12, fontweight="bold")
+    axes[0].set_ylabel("Model", fontsize=11, fontweight="bold", labelpad=6)
     axes[1].set_ylabel("")
+
+    # Colorbar tick/label size (seaborn does not pass through all text props on all versions).
+    _main = {axes[0], axes[1]}
+    for a in fig.axes:
+        if a in _main:
+            continue
+        a.tick_params(labelsize=9, length=3, width=0.9)
+        yl = a.get_ylabel()
+        if yl:
+            a.set_ylabel(yl, fontsize=9, fontweight="bold")
 
     fig.text(
         0.5,
-        0.02,
+        0.125,
+        "Scope: order–time v2 table scores. Extension: staged T–k pre–outcome model—see poster.",
+        ha="center",
+        va="top",
+        fontsize=9,
+        color=FLINT,
+    )
+    fig.text(
+        0.5,
+        0.015,
         (
             "Compare the same two estimators on temporal (strict) vs. grouped (easier) holdouts. "
             "Temporal ≈ train on past periods, test on later orders (~0.9% positives). "
             "Grouped = by sales document. Recent 24-week omitted (~14 positives — unstable). "
             "If logistic matches or leads on temporal PR-AUC, boosting has not earned complexity here. "
-            "Black outline = best in column."
+            "Night (brand) outline = best in column."
         ),
         ha="center",
         va="bottom",
-        fontsize=10.5,
+        fontsize=9,
+        color=FLINT,
     )
-    plt.tight_layout(rect=(0, 0.08, 1, 0.92))
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    fig.savefig(HEATMAP_PATH, dpi=220, bbox_inches="tight", facecolor="white")
+    fig.savefig(HEATMAP_PATH, dpi=dpi, bbox_inches=None, facecolor="white", pad_inches=0)
     plt.close(fig)
     return HEATMAP_PATH
 
@@ -173,19 +246,38 @@ def save_temporal_snapshot() -> Path:
         0.12,
         boxstyle="round,pad=0.012,rounding_size=0.02",
         linewidth=0,
-        facecolor="#E8F1FB",
+        facecolor=TINT_HEADER,
         transform=ax.transAxes,
     )
     ax.add_patch(header_box)
-    ax.text(0.5, 0.88, "Selected Production Snapshot", ha="center", va="center", fontsize=24, fontweight="bold", transform=ax.transAxes)
-    ax.text(0.5, 0.84, "Strict temporal holdout on leakage-safe order-time features", ha="center", va="center", fontsize=13, transform=ax.transAxes)
+    ax.text(
+        0.5,
+        0.88,
+        "Selected Production Snapshot",
+        ha="center",
+        va="center",
+        fontsize=24,
+        fontweight="bold",
+        color=FLINT,
+        transform=ax.transAxes,
+    )
+    ax.text(
+        0.5,
+        0.84,
+        "Strict temporal holdout on leakage-safe order-time features",
+        ha="center",
+        va="center",
+        fontsize=13,
+        color=FLINT,
+        transform=ax.transAxes,
+    )
 
     card_specs = [
-        (0.06, 0.54, 0.4, 0.2, "#F6F0FF", "Selected Model", "Logistic Regression"),
-        (0.54, 0.54, 0.4, 0.2, "#EEF7EE", "Decision Threshold", f"{row['decision_threshold']:.3f}"),
-        (0.06, 0.28, 0.27, 0.18, "#FFF7E8", "F1", f"{row['f1']:.2f}"),
-        (0.365, 0.28, 0.27, 0.18, "#EAF4FF", "PR-AUC", f"{row['pr_auc']:.2f}"),
-        (0.67, 0.28, 0.27, 0.18, "#EAFBF4", "ROC-AUC", f"{row['roc_auc']:.2f}"),
+        (0.06, 0.54, 0.4, 0.2, TINT_CARD_A, "Selected Model", "Logistic Regression"),
+        (0.54, 0.54, 0.4, 0.2, TINT_CARD_C, "Decision Threshold", f"{row['decision_threshold']:.3f}"),
+        (0.06, 0.28, 0.27, 0.18, TINT_CARD_D, "F1", f"{row['f1']:.2f}"),
+        (0.365, 0.28, 0.27, 0.18, TINT_CARD_B, "PR-AUC", f"{row['pr_auc']:.2f}"),
+        (0.67, 0.28, 0.27, 0.18, BIRCH, "ROC-AUC", f"{row['roc_auc']:.2f}"),
     ]
 
     for x, y, w, h, color, label, value in card_specs:
@@ -195,13 +287,33 @@ def save_temporal_snapshot() -> Path:
             h,
             boxstyle="round,pad=0.012,rounding_size=0.02",
             linewidth=1.5,
-            edgecolor="#D1D5DB",
+            edgecolor=EDGE_SUBTLE,
             facecolor=color,
             transform=ax.transAxes,
         )
         ax.add_patch(rect)
-        ax.text(x + 0.03, y + h - 0.05, label, ha="left", va="top", fontsize=13, fontweight="bold", color="#374151", transform=ax.transAxes)
-        ax.text(x + w / 2, y + 0.045, value, ha="center", va="bottom", fontsize=24, fontweight="bold", color="#111827", transform=ax.transAxes)
+        ax.text(
+            x + 0.03,
+            y + h - 0.05,
+            label,
+            ha="left",
+            va="top",
+            fontsize=13,
+            fontweight="bold",
+            color=FLINT,
+            transform=ax.transAxes,
+        )
+        ax.text(
+            x + w / 2,
+            y + 0.045,
+            value,
+            ha="center",
+            va="bottom",
+            fontsize=24,
+            fontweight="bold",
+            color=NIGHT,
+            transform=ax.transAxes,
+        )
 
     notes_box = patches.FancyBboxPatch(
         (0.06, 0.05),
@@ -209,8 +321,8 @@ def save_temporal_snapshot() -> Path:
         0.16,
         boxstyle="round,pad=0.012,rounding_size=0.02",
         linewidth=1.2,
-        edgecolor="#D1D5DB",
-        facecolor="#FFFFFF",
+        edgecolor=EDGE_SUBTLE,
+        facecolor=SNOW,
         transform=ax.transAxes,
     )
     ax.add_patch(notes_box)
@@ -220,7 +332,16 @@ def save_temporal_snapshot() -> Path:
         "Grouped split is stronger but easier because train/test overlap in calendar time.",
     ]
     for idx, note in enumerate(notes):
-        ax.text(0.09, 0.17 - (idx * 0.045), note, ha="left", va="center", fontsize=13, color="#111827", transform=ax.transAxes)
+        ax.text(
+            0.09,
+            0.17 - (idx * 0.045),
+            note,
+            ha="left",
+            va="center",
+            fontsize=13,
+            color=FLINT,
+            transform=ax.transAxes,
+        )
 
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     fig.savefig(SNAPSHOT_PATH, dpi=200, bbox_inches="tight")
