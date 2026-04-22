@@ -57,3 +57,12 @@ Baselines are mandatory context for rare-event tasks and must be shown beside mo
 - No post-outcome features disguised as predictors.
 - No cherry-picking split windows after looking at holdout results.
 - No changing target definitions during a comparison cycle.
+
+## 9) Champion model (defensible selection)
+
+These rules keep the **selection path** aligned with the **claim path**.
+
+- **Where the champion is chosen:** Pick the primary model family and operating threshold using **inner temporal validation** on rows inside temporal train only (see `selected_model.selection_split` and `selected_model.selection_basis` in `models/classification_metrics_v2_ordertime.json`). Do not crown a model because it wins **group holdout** or another diagnostic view alone.
+- **Where forward honesty is reported:** **Temporal holdout** is the primary forward-time evaluation for how the frozen choice behaves on later dates. Expect sparse positives; threshold metrics can be noisy—still report them plainly.
+- **What diagnostic splits are for:** Group holdout and recent-window slices are **stress and comparison context**, not a second scoreboard for picking the champion. Presenting a model as “best” because it wins grouped while the narrative claims temporal integrity is inconsistent.
+- **Versioned dashboard snapshot:** `output/dashboard/model_health_dashboard.html` is generated from the metrics JSON and may be committed after a good run as a **UI checkpoint** for revert or review. Regenerate with `python3 scripts/generate_model_health_dashboard.py` after metrics change; the JSON remains the numerical source of truth.

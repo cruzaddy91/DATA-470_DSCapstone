@@ -50,21 +50,22 @@ That is all it means. It is just a more realistic check of whether the model wou
 
 ## Model Comparison
 
-The modeling story should stay small:
+Candidates can include several tabular models (see the cockpit). The narrative should stay disciplined:
 
 | Model | Role | Why it is here |
 |---|---|---|
 | `logistic_regression` | Baseline | Simple, interpretable, easy to defend |
 | `lightgbm` | Challenger | Captures non-linear patterns in tabular data |
+| Other challengers (e.g. `catboost`, ensembles) | Optional | Compared under the same protocol when enabled |
 
-Selection should be based on the `temporal_holdout` results, with `PR-AUC` and `F1` as the main metrics.
+**Champion rule:** The primary model is selected from **inner temporal validation** on temporal-train rows only (`selected_model` in `models/classification_metrics_v2_ordertime.json`). **Temporal holdout** is the main forward-time evaluation for reporting—not the place to pick architecture by peeking. Group / recent splits are diagnostic. Full wording: `docs/md/modeling_experiment_protocol.md` section 9.
 
 ## Canonical Workflow
 
 1. Build pipeline tables.
 2. Build the `v2` order-time modeling table.
-3. Train and compare `logistic_regression` and `lightgbm`.
-4. Present the better temporal-holdout model.
+3. Train and compare models under the protocol; confirm `selected_model` reflects inner-temporal choice.
+4. Report temporal holdout metrics for the selected model; use `scripts/generate_model_health_dashboard.py` for a frozen HTML checkpoint when desired.
 
 ## Key Files
 

@@ -20,6 +20,7 @@ output/poster/*
 output/tables/*
 output/pdf/*
 output/dashboard/*
+!output/dashboard/model_health_dashboard.html
 # CatBoost writes this during training; never publish run metadata
 catboost_info/
 # mermaid-cli: generated puppeteer config (local Chrome path)

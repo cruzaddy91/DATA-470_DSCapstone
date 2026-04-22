@@ -306,9 +306,11 @@ def _instrument_model_panel(models: dict[str, Any], preferred: str | None) -> st
         f"<div class='dash-title'>Primary Dials ({selected_name})</div>"
         f"{gauges}"
         "</div>"
-        "<div class='instrument-card'>"
+        "<div class='instrument-card instrument-card--rails'>"
         "<div class='dash-title'>F1 Leaderboard Rails</div>"
+        "<div class='rails-body'>"
         + "".join(rails)
+        + "</div>"
         + "</div>"
         "</div>"
     )
@@ -599,9 +601,11 @@ def generate_dashboard(project_root: str | Path | None = None) -> Path:
             category_sections.append(f"<div class='category'><h3>{category}</h3><div class='grid'>{''.join(cards)}</div></div>")
     chart_html = "\n".join(category_sections)
 
+    gen_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     html = f"""<!doctype html>
 <html lang="en">
 <head>
+  <!-- Snapshot: metrics baked at {gen_ts}. Source JSON: models/classification_metrics_v2_ordertime.json (local artifact). Champion rule: docs/md/modeling_experiment_protocol.md section 9. -->
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Model Health Cockpit</title>
@@ -631,6 +635,7 @@ def generate_dashboard(project_root: str | Path | None = None) -> Path:
     .category {{ border-top: 2px solid #2a3350; padding-top: 14px; margin-top: 14px; }}
     .category:first-of-type {{ border-top: 0; padding-top: 0; margin-top: 0; }}
     .hero-sub {{ font-size: 13px; color: #9da7b3; margin-top: 6px; }}
+    .champion-note {{ margin-top: 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid #385177; background: #141c2e; color: #c8d7ea; font-size: 12px; line-height: 1.45; max-width: 920px; }}
     .toggle-btn {{ background:#24304a; border:1px solid #3a4e7a; color:#e6edf3; border-radius:8px; padding:8px 12px; font-size:12px; cursor:pointer; }}
     .toggle-btn.active {{ background:#2f6a42; border-color:#3d8c59; color:#e8fff0; }}
     .go-banner {{ border-radius:10px; padding:10px 12px; margin-top:12px; font-size:13px; font-weight:700; border:1px solid transparent; }}
@@ -679,13 +684,18 @@ def generate_dashboard(project_root: str | Path | None = None) -> Path:
     .deploy-card.ok {{ border-color:#2f6a42; }}
     .deploy-card.bad {{ border-color:#8d3c47; }}
     .deploy-card.warn {{ border-color:#8a7133; }}
-    .instrument-grid {{ display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(300px,1fr)); }}
-    .instrument-card {{ border:1px solid #3a4250; border-radius:10px; padding:10px; background:#121820; }}
+    .instrument-grid {{ display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(300px,1fr)); align-items:stretch; }}
+    .instrument-card {{ border:1px solid #3a4250; border-radius:10px; padding:10px; background:#121820; display:flex; flex-direction:column; min-height:0; height:100%; box-sizing:border-box; }}
     .rail-row, .ci-row {{ display:grid; grid-template-columns: 130px 1fr 95px; align-items:center; gap:8px; margin:6px 0; }}
+    .instrument-card--rails .rails-body {{ flex:1 1 auto; display:flex; flex-direction:column; gap:clamp(6px, 1.2vh, 14px); min-height:0; justify-content:space-between; }}
+    .instrument-card--rails .rail-row {{ flex:1 1 0; margin:0; min-height:48px; grid-template-columns:minmax(108px, 32%) 1fr minmax(76px, 22%); gap:10px; align-items:center; }}
     .rail-label, .ci-label {{ font-size:11px; color:#b6c1cf; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
+    .instrument-card--rails .rail-label {{ font-size:clamp(12px, 1.05vw, 14px); font-weight:600; }}
     .rail-track, .ci-track {{ height:10px; border-radius:999px; background:#1d2734; position:relative; }}
+    .instrument-card--rails .rail-track {{ height:clamp(20px, 4.2vmin, 44px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.06); }}
     .rail-fill {{ height:100%; border-radius:999px; background:linear-gradient(90deg, #8252C7, #00B5E2); }}
     .rail-val, .ci-val {{ font-size:11px; color:#dce5f3; text-align:right; }}
+    .instrument-card--rails .rail-val {{ font-size:clamp(12px, 1.05vw, 15px); font-weight:700; font-variant-numeric: tabular-nums; }}
     .ci-band {{ position:absolute; top:0; bottom:0; border-radius:999px; background:linear-gradient(90deg, #9D581F, #00B5E2); }}
   </style>
 </head>
@@ -694,9 +704,10 @@ def generate_dashboard(project_root: str | Path | None = None) -> Path:
     <div class="card">
       <h1>Model Health Cockpit</h1>
       <div class="hero-sub">Single-pane operational model health, governance, and evidence.</div>
+      <div class="champion-note"><strong>Champion (defensible):</strong> choose the primary model using <em>inner temporal validation</em> on temporal-train rows only—never because it wins group holdout or another diagnostic slice alone. <strong>Temporal holdout</strong> reports forward-time behavior at the frozen threshold. Diagnostic splits are context, not a second crown.</div>
       {_go_no_go_banner(deploy)}
       <div class="meta">
-        <span>Updated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>
+        <span>Updated: {gen_ts}</span>
         <span>Selected model: {selected.get('name', '-')}</span>
         <span>Temporal split strategy: {temporal.get('strategy', '-')}</span>
         <span>Maturity gate pass: {gate.get('passed', '-')}</span>
