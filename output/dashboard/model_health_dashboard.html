@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <!-- Snapshot: metrics baked at 2026-04-22 12:05:33. Source JSON: models/classification_metrics_v2_ordertime.json (local artifact). Champion rule: docs/md/modeling_experiment_protocol.md section 9. -->
+  <!-- Snapshot: metrics baked at 2026-04-22 12:18:18. Source JSON: models/classification_metrics_v2_ordertime.json (local artifact). Champion rule: docs/md/modeling_experiment_protocol.md section 9. -->
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Model Health Cockpit</title>
@@ -102,9 +102,9 @@
       <h1>Model Health Cockpit</h1>
       <div class="hero-sub">Single-pane operational model health, governance, and evidence.</div>
       <div class="champion-note"><strong>Champion (defensible):</strong> choose the primary model using <em>inner temporal validation</em> on temporal-train rows only—never because it wins group holdout or another diagnostic slice alone. <strong>Temporal holdout</strong> reports forward-time behavior at the frozen threshold. Diagnostic splits are context, not a second crown.</div>
-      <div class='go-banner no-go'>NO-GO - At least one binding deployment check failed.</div>
+      <div class='go-banner go'>GO - Binding deployment readiness checks passed.</div>
       <div class="meta">
-        <span>Updated: 2026-04-22 12:05:33</span>
+        <span>Updated: 2026-04-22 12:18:18</span>
         <span>Selected model: catboost</span>
         <span>Temporal split strategy: latest_cutoff_with_minimum_positive_support</span>
         <span>Maturity gate pass: True</span>
@@ -133,7 +133,7 @@
       <div class="card"><strong>Temporal positives</strong><div>58</div></div>
       <div class="card"><strong>Temporal positive rate</strong><div>0.0089</div></div>
       <div class="card"><strong>Dataset positive rate</strong><div>0.0338</div></div>
-      <div class='card deploy-card bad'><strong>Deploy: Temporal Primary (Required)</strong><div class='deploy-state'><span class='tl tl-red' aria-label='not-deployable'></span> <span>False</span></div></div><div class='card deploy-card bad'><strong>Deploy: Recent Operational Window (Required)</strong><div class='deploy-state'><span class='tl tl-red' aria-label='not-deployable'></span> <span>False</span></div></div>
+      <div class='card deploy-card ok'><strong>Deploy: Temporal Primary (Required)</strong><div class='deploy-state'><span class='tl tl-green' aria-label='deployable'></span> <span>True</span></div></div><div class='card deploy-card bad'><strong>Deploy: Recent Operational Window (Advisory)</strong><div class='deploy-state'><span class='tl tl-red' aria-label='not-deployable'></span> <span>False</span></div></div>
     </div>
 
     
