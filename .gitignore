@@ -6,6 +6,7 @@ __pycache__/
 .venv_pr/
 .venv-v2/
 .venv-codex/
+.venv_e2e/
 .matplotlib/
 .pytest_cache/
 .ipynb_checkpoints/
