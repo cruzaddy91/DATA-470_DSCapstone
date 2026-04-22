@@ -15,6 +15,8 @@ from src.models.v2_ordertime.classifier_registry import build_all_v2_binary_clas
 from src.models.v2_ordertime.evaluation import (
     compute_classification_metrics,
     evaluate_classifier_train_test_split,
+    select_threshold_with_precision_floor,
+    threshold_from_train_temporal_tail,
     threshold_from_train_oof,
 )
 
@@ -84,6 +86,8 @@ LEGACY_TABLE_FILE = f"{LEGACY_ORDER_TARGET_TABLE}.csv"
 MODEL_FILE_MAP = {
     "logistic_regression": f"backorder_logistic{ARTIFACT_SUFFIX}.joblib",
     "lightgbm": f"backorder_lightgbm{ARTIFACT_SUFFIX}.joblib",
+    "xgboost": f"backorder_xgboost{ARTIFACT_SUFFIX}.joblib",
+    "catboost": f"backorder_catboost{ARTIFACT_SUFFIX}.joblib",
 }
 
 CLASSIFICATION_METRICS_FILE = f"classification_metrics{ARTIFACT_SUFFIX}.json"
@@ -213,6 +217,64 @@ def _assert_no_non_finite(df: pd.DataFrame, numeric_columns: list[str], label: s
             raise ValueError(f"{label} contains non-finite values in column: {column}")
 
 
+def _add_lagged_risk_rate_features(
+    features: pd.DataFrame,
+    meta: pd.DataFrame,
+    target: pd.Series,
+) -> tuple[pd.DataFrame, list[str]]:
+    """
+    Add leakage-safe historical positive-rate features using strictly prior rows.
+
+    Rates are built by sorting rows by ``order_date`` (then stable row order) and using
+    cumulative counts shifted by one row within each key. This uses only past outcomes for
+    each row and remains valid for temporal evaluation.
+    """
+    if DATE_COLUMN not in meta.columns:
+        return features, []
+
+    work = features.copy()
+    work["_order_date_tmp"] = pd.to_datetime(meta[DATE_COLUMN], errors="coerce").fillna(pd.Timestamp.min)
+    work["_orig_idx_tmp"] = np.arange(len(work), dtype=int)
+    work["_y_tmp"] = target.to_numpy().astype(int)
+    # IDs are metadata columns (not leakage targets) and are known at order time.
+    work["_material_number_tmp"] = meta.get("material_number", pd.Series(index=meta.index, dtype="object")).fillna("Missing").astype(str)
+    work["_customer_number_tmp"] = meta.get("customer_number", pd.Series(index=meta.index, dtype="object")).fillna("Missing").astype(str)
+    work["_client_id_tmp"] = meta.get("client_id", pd.Series(index=meta.index, dtype="object")).fillna("Missing").astype(str)
+
+    work = work.sort_values(["_order_date_tmp", "_orig_idx_tmp"]).reset_index(drop=True)
+
+    created: list[str] = []
+    key_specs: list[tuple[list[str], str]] = [
+        (["_material_number_tmp"], "hist_rate_material"),
+        (["_customer_number_tmp"], "hist_rate_customer"),
+        (["_client_id_tmp", "_material_number_tmp"], "hist_rate_client_material"),
+    ]
+
+    for keys, rate_name in key_specs:
+        grp = work.groupby(keys, sort=False)["_y_tmp"]
+        prior_count = grp.cumcount()
+        prior_pos = grp.cumsum() - work["_y_tmp"]
+        # Conservative prior for unseen groups: global positive rate.
+        global_prior = float(work["_y_tmp"].mean()) if len(work) else 0.0
+        rate = prior_pos / prior_count.replace(0, np.nan)
+        work[rate_name] = rate.fillna(global_prior).clip(lower=0.0, upper=1.0)
+        cnt_name = f"{rate_name}_count"
+        work[cnt_name] = np.log1p(prior_count.astype(float))
+        created.extend([rate_name, cnt_name])
+
+    work = work.sort_values("_orig_idx_tmp").reset_index(drop=True)
+    drop_cols = [
+        "_order_date_tmp",
+        "_orig_idx_tmp",
+        "_y_tmp",
+        "_material_number_tmp",
+        "_customer_number_tmp",
+        "_client_id_tmp",
+    ]
+    work = work.drop(columns=drop_cols, errors="ignore")
+    return work, created
+
+
 def prepare_backorder_dataset(project_root: str | Path | None = None) -> PreparedDataset:
     """Build the official order-time feature matrix for backorder modeling."""
     paths = _get_paths(project_root)
@@ -232,6 +294,24 @@ def prepare_backorder_dataset(project_root: str | Path | None = None) -> Prepare
 
     for column in RAW_NUMERIC_FEATURES:
         order[column] = pd.to_numeric(order[column], errors="coerce")
+
+    # Leakage-safe derived risk signals at order time:
+    # - confirmation_gap_qty: requested minus confirmed quantity at order creation.
+    # - confirmation_fill_ratio: confirmed/requested (clipped to [0, 1.5], neutral 1.0 when missing/zero).
+    if {"cumulative_order_quantity", "cumulative_confirmed_quantity"}.issubset(order.columns):
+        oq = pd.to_numeric(order["cumulative_order_quantity"], errors="coerce")
+        cq = pd.to_numeric(order["cumulative_confirmed_quantity"], errors="coerce")
+        order["confirmation_gap_qty"] = (oq - cq).clip(lower=0)
+        denom = oq.where(oq > 0)
+        ratio = (cq / denom).replace([np.inf, -np.inf], np.nan)
+        order["confirmation_fill_ratio"] = ratio.fillna(1.0).clip(lower=0.0, upper=1.5)
+    else:
+        order["confirmation_gap_qty"] = 0.0
+        order["confirmation_fill_ratio"] = 1.0
+
+    derived_numeric_features = ["confirmation_gap_qty", "confirmation_fill_ratio"]
+    for column in derived_numeric_features:
+        order[column] = pd.to_numeric(order[column], errors="coerce")
     _assert_no_non_finite(order, RAW_NUMERIC_FEATURES, ORDERTIME_MODELING_TABLE)
 
     for column in RAW_CATEGORICAL_FEATURES:
@@ -239,10 +319,13 @@ def prepare_backorder_dataset(project_root: str | Path | None = None) -> Prepare
 
     target = pd.to_numeric(order[TARGET_COLUMN], errors="coerce")
     mask = target.notna()
+    if TARGET_OBSERVED_COLUMN in order.columns:
+        observed = pd.to_numeric(order[TARGET_OBSERVED_COLUMN], errors="coerce").fillna(0).astype(int)
+        mask &= observed.eq(1)
     if not mask.any():
         raise ValueError("Order-time modeling dataset has no resolved targets after outcome filtering.")
 
-    feature_columns = RAW_NUMERIC_FEATURES + RAW_CATEGORICAL_FEATURES
+    feature_columns = RAW_NUMERIC_FEATURES + derived_numeric_features + RAW_CATEGORICAL_FEATURES
     features = order.loc[mask, feature_columns].copy()
     missing_indicator_features: list[str] = []
 
@@ -258,7 +341,7 @@ def prepare_backorder_dataset(project_root: str | Path | None = None) -> Prepare
             features[indicator_column] = features[column].isna().astype(int)
             missing_indicator_features.append(indicator_column)
 
-    numeric_features = RAW_NUMERIC_FEATURES + missing_indicator_features
+    numeric_features = RAW_NUMERIC_FEATURES + derived_numeric_features + missing_indicator_features
     categorical_features = RAW_CATEGORICAL_FEATURES.copy()
     _assert_no_non_finite(features, numeric_features, "Prepared order-time feature matrix")
 
@@ -266,10 +349,14 @@ def prepare_backorder_dataset(project_root: str | Path | None = None) -> Prepare
     meta = order.loc[mask, meta_columns].copy()
     if DATE_COLUMN in meta.columns:
         meta[DATE_COLUMN] = pd.to_datetime(meta[DATE_COLUMN], errors="coerce")
+    features, history_numeric_features = _add_lagged_risk_rate_features(features, meta, target.loc[mask])
 
     features = features.reset_index(drop=True)
     meta = meta.reset_index(drop=True)
     target = target.loc[mask].astype(int).reset_index(drop=True)
+
+    numeric_features = numeric_features + history_numeric_features
+    _assert_no_non_finite(features, numeric_features, "Prepared order-time feature matrix (with history features)")
 
     return PreparedDataset(
         features=features,
@@ -462,6 +549,8 @@ def _evaluate_osq_si_logistic(
     dataset: PreparedDataset,
     train_index: np.ndarray,
     test_index: np.ndarray,
+    *,
+    threshold_mode: str = "stratified_oof",
 ) -> dict[str, float]:
     """Train logistic regression on outstanding_qty and saleable_inventory only."""
     from sklearn.impute import SimpleImputer
@@ -492,7 +581,16 @@ def _evaluate_osq_si_logistic(
             ),
         ]
     )
-    threshold, strategy, thresh_meta = threshold_from_train_oof(template, X_train, y_train)
+    if threshold_mode == "temporal_tail":
+        train_dates = dataset.meta.iloc[train_index][DATE_COLUMN]
+        threshold, strategy, thresh_meta = threshold_from_train_temporal_tail(
+            template,
+            X_train,
+            y_train,
+            train_dates,
+        )
+    else:
+        threshold, strategy, thresh_meta = threshold_from_train_oof(template, X_train, y_train)
     pipeline_final = clone(template)
     pipeline_final.fit(X_train, y_train)
     y_proba = pipeline_final.predict_proba(X_test)[:, 1]
@@ -510,10 +608,22 @@ def _merge_snapshot_backorder_models(
     dataset: PreparedDataset,
     train_index: np.ndarray,
     test_index: np.ndarray,
+    *,
+    threshold_mode: str = "stratified_oof",
 ) -> dict[str, dict[str, Any]]:
-    sklearn_metrics, _, _ = _evaluate_models(dataset, train_index, test_index)
+    sklearn_metrics, _, _ = _evaluate_models(
+        dataset,
+        train_index,
+        test_index,
+        threshold_mode=threshold_mode,
+    )
     rule_metrics = _snapshot_backorder_rule_metrics(dataset, test_index)
-    minimal_metrics = _evaluate_osq_si_logistic(dataset, train_index, test_index)
+    minimal_metrics = _evaluate_osq_si_logistic(
+        dataset,
+        train_index,
+        test_index,
+        threshold_mode=threshold_mode,
+    )
     merged = dict(sklearn_metrics)
     merged[OSQ_SI_LOGISTIC_MODEL_NAME] = minimal_metrics
     merged["rule_outstanding_gt_saleable"] = rule_metrics
@@ -535,9 +645,19 @@ def _snapshot_backorder_metrics_addon(project_root: str | Path) -> dict[str, Any
     except Exception as exc:  # pragma: no cover - depends on live data shape
         return {"snapshot_backorder_status": {"available": False, "detail": str(exc)}}
 
-    temporal_models = _merge_snapshot_backorder_models(snap_dataset, temporal_train, temporal_test)
+    temporal_models = _merge_snapshot_backorder_models(
+        snap_dataset,
+        temporal_train,
+        temporal_test,
+        threshold_mode="temporal_tail",
+    )
     group_models = _merge_snapshot_backorder_models(snap_dataset, group_train, group_test)
-    recent_models = _merge_snapshot_backorder_models(snap_dataset, recent_train, recent_test)
+    recent_models = _merge_snapshot_backorder_models(
+        snap_dataset,
+        recent_train,
+        recent_test,
+        threshold_mode="temporal_tail",
+    )
 
     return {
         "snapshot_backorder_status": {"available": True},
@@ -579,8 +699,10 @@ def _evaluate_models(
     dataset: PreparedDataset,
     train_index: np.ndarray,
     test_index: np.ndarray,
+    *,
+    threshold_mode: str = "stratified_oof",
 ) -> tuple[dict[str, dict[str, Any]], dict[str, Any], dict[str, dict[str, np.ndarray]]]:
-    """Run each registered v2 classifier (LR + LightGBM) through shared OOF thresholding."""
+    """Run each registered v2 classifier with configurable threshold calibration."""
     y_train = dataset.target.iloc[train_index]
 
     metrics_by_model: dict[str, dict[str, Any]] = {}
@@ -589,13 +711,153 @@ def _evaluate_models(
 
     for name, pipeline in build_all_v2_binary_classifiers(dataset, y_train).items():
         metrics, y_pred, y_proba, pipeline_final = evaluate_classifier_train_test_split(
-            dataset, train_index, test_index, pipeline
+            dataset,
+            train_index,
+            test_index,
+            pipeline,
+            threshold_mode=threshold_mode,
         )
         metrics_by_model[name] = metrics
         fitted_models[name] = pipeline_final
         predictions[name] = {"y_pred": y_pred, "y_proba": y_proba}
 
+    # Diagnostic soft-voting blend: LR + LightGBM (same split, train-side threshold calibration only).
+    if "logistic_regression" in predictions and "lightgbm" in predictions:
+        p_lr = np.asarray(predictions["logistic_regression"]["y_proba"], dtype=float)
+        p_lgb = np.asarray(predictions["lightgbm"]["y_proba"], dtype=float)
+        p_blend = 0.5 * p_lr + 0.5 * p_lgb
+        y_test = dataset.target.iloc[test_index].to_numpy()
+
+        threshold = 0.5
+        strategy = "fixed_0.5_soft_vote"
+        meta: dict[str, Any] = {}
+
+        if threshold_mode == "temporal_tail":
+            X_train = dataset.features.iloc[train_index]
+            y_train_arr = dataset.target.iloc[train_index].to_numpy()
+            dates = pd.to_datetime(dataset.meta.iloc[train_index][DATE_COLUMN], errors="coerce")
+            valid = dates.notna().to_numpy()
+            if valid.sum() >= 2:
+                unique_dates = np.sort(dates.loc[valid].drop_duplicates().to_numpy())
+                max_date = pd.Timestamp(unique_dates[-1])
+
+                def _split_at(cutoff: pd.Timestamp) -> tuple[np.ndarray, np.ndarray]:
+                    tr_mask = ((dates < cutoff) & dates.notna()).to_numpy()
+                    va_mask = (dates >= cutoff).fillna(False).to_numpy()
+                    return np.flatnonzero(tr_mask), np.flatnonzero(va_mask)
+
+                chosen_cutoff: pd.Timestamp | None = None
+                for raw in unique_dates[::-1]:
+                    cutoff = pd.Timestamp(raw)
+                    tr_idx, va_idx = _split_at(cutoff)
+                    if len(tr_idx) == 0 or len(va_idx) == 0:
+                        continue
+                    val_pos = int((y_train_arr[va_idx] == 1).sum())
+                    val_days = int((max_date - cutoff).days)
+                    if val_pos >= 10 and val_days >= 28:
+                        chosen_cutoff = cutoff
+                        break
+                if chosen_cutoff is None:
+                    default_pos = max(1, int(np.floor(len(unique_dates) * 0.8)))
+                    default_pos = min(default_pos, len(unique_dates) - 1)
+                    chosen_cutoff = pd.Timestamp(unique_dates[default_pos])
+
+                tr_idx, va_idx = _split_at(chosen_cutoff)
+                used_cutoff = chosen_cutoff
+                # adaptive widen for min positive support
+                if int((y_train_arr[va_idx] == 1).sum()) < 25:
+                    for raw in unique_dates[::-1]:
+                        candidate = pd.Timestamp(raw)
+                        if candidate > chosen_cutoff:
+                            continue
+                        tr_c, va_c = _split_at(candidate)
+                        if len(tr_c) == 0 or len(va_c) == 0:
+                            continue
+                        if int((max_date - candidate).days) > 365:
+                            continue
+                        if int((y_train_arr[va_c] == 1).sum()) >= 25:
+                            tr_idx, va_idx = tr_c, va_c
+                            used_cutoff = candidate
+                            break
+
+                if len(tr_idx) > 0 and len(va_idx) > 0:
+                    from copy import deepcopy
+
+                    base_models = build_all_v2_binary_classifiers(dataset, dataset.target.iloc[train_index])
+                    lr_pipe = deepcopy(base_models["logistic_regression"])
+                    lgb_pipe = deepcopy(base_models["lightgbm"])
+                    lr_pipe.fit(X_train.iloc[tr_idx], y_train_arr[tr_idx])
+                    lgb_pipe.fit(X_train.iloc[tr_idx], y_train_arr[tr_idx])
+                    p_va = 0.5 * lr_pipe.predict_proba(X_train.iloc[va_idx])[:, 1] + 0.5 * lgb_pipe.predict_proba(
+                        X_train.iloc[va_idx]
+                    )[:, 1]
+                    precision_floor = float(os.environ.get("MODEL_PRECISION_FLOOR", "0.35"))
+                    guard = max(1, int(np.ceil((y_train_arr[va_idx] == 1).sum() * 0.5)))
+                    threshold, objective = select_threshold_with_precision_floor(
+                        y_train_arr[va_idx],
+                        p_va,
+                        precision_floor=precision_floor,
+                        min_predicted_positives=guard,
+                    )
+                    strategy = (
+                        "temporal_tail_min_pos_min_days__adaptive_window_for_positive_support__"
+                        f"{objective}__soft_vote_lr_lightgbm"
+                    )
+                    meta = {
+                        "threshold_calibration_val_rows": float(len(va_idx)),
+                        "threshold_calibration_val_positives": float(int((y_train_arr[va_idx] == 1).sum())),
+                        "threshold_calibration_val_window_days": float(int((max_date - used_cutoff).days)),
+                        "threshold_calibration_precision_floor": float(precision_floor),
+                        "threshold_calibration_guard_min_predicted_positives": float(guard),
+                    }
+
+        y_pred = (p_blend >= threshold).astype(int)
+        blend_metrics = compute_classification_metrics(y_test, y_pred, p_blend)
+        blend_metrics["decision_threshold"] = float(threshold)
+        blend_metrics["threshold_calibration_strategy"] = strategy
+        blend_metrics["threshold_calibration_train_rows"] = float(len(train_index))
+        blend_metrics.update(meta)
+        metrics_by_model["soft_vote_lr_lightgbm"] = blend_metrics
+        predictions["soft_vote_lr_lightgbm"] = {"y_pred": y_pred, "y_proba": p_blend}
+
     return metrics_by_model, fitted_models, predictions
+
+
+def _select_model_from_temporal_train(
+    dataset: PreparedDataset,
+    temporal_train_index: np.ndarray,
+) -> tuple[str, dict[str, Any]]:
+    """
+    Pick model architecture using only temporal-train rows via an inner temporal split.
+
+    Prevents selecting LR vs LightGBM on the final temporal holdout test set.
+    """
+    train_only_dataset = PreparedDataset(
+        features=dataset.features.iloc[temporal_train_index].reset_index(drop=True),
+        target=dataset.target.iloc[temporal_train_index].reset_index(drop=True),
+        meta=dataset.meta.iloc[temporal_train_index].reset_index(drop=True),
+        numeric_features=dataset.numeric_features,
+        categorical_features=dataset.categorical_features,
+        missing_indicator_features=dataset.missing_indicator_features,
+        osq_si_label_inputs=None
+        if dataset.osq_si_label_inputs is None
+        else dataset.osq_si_label_inputs.iloc[temporal_train_index].reset_index(drop=True),
+    )
+    inner_train, inner_val, inner_split = _temporal_split_indices(train_only_dataset)
+    inner_metrics, _, _ = _evaluate_models(
+        train_only_dataset,
+        inner_train,
+        inner_val,
+        threshold_mode="temporal_tail",
+    )
+    best_model_name = max(
+        inner_metrics,
+        key=lambda name: (
+            inner_metrics[name].get("pr_auc", 0.0),
+            inner_metrics[name].get("f1", 0.0),
+        ),
+    )
+    return best_model_name, {"inner_temporal_split": inner_split, "inner_metrics": inner_metrics}
 
 
 def _temporal_split_indices(dataset: PreparedDataset) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
@@ -1281,13 +1543,23 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
     dataset = prepare_backorder_dataset(paths["project_root"])
 
     temporal_train, temporal_test, temporal_split = _temporal_split_indices(dataset)
-    temporal_metrics, temporal_models, temporal_predictions = _evaluate_models(dataset, temporal_train, temporal_test)
+    temporal_metrics, temporal_models, temporal_predictions = _evaluate_models(
+        dataset,
+        temporal_train,
+        temporal_test,
+        threshold_mode="temporal_tail",
+    )
 
     group_train, group_test = _group_split_indices(dataset)
     group_metrics, _, _ = _evaluate_models(dataset, group_train, group_test)
 
     recent_train, recent_test, recent_split = _recent_24_week_temporal_split_indices(dataset)
-    recent_metrics, _, _ = _evaluate_models(dataset, recent_train, recent_test)
+    recent_metrics, _, _ = _evaluate_models(
+        dataset,
+        recent_train,
+        recent_test,
+        threshold_mode="temporal_tail",
+    )
 
     diagnostics = generate_diagnostics(dataset, paths["project_root"])
 
@@ -1334,19 +1606,20 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
         "diagnostics": diagnostics,
     }
 
-    best_model_name = max(
-        temporal_metrics,
-        key=lambda name: (temporal_metrics[name]["f1"], temporal_metrics[name]["pr_auc"]),
+    best_model_name, selection_detail = _select_model_from_temporal_train(dataset, temporal_train)
+    selection_note = (
+        "Primary model selected from inner temporal split on temporal-train rows only; "
+        "temporal holdout test remains final evaluation."
     )
-    selection_note = "Primary model selected from the temporal holdout; grouped metrics are secondary diagnostics."
     if temporal_test_positives < TEMPORAL_TEST_MIN_POSITIVES:
         selection_note += " Temporal holdout is sparse, so treat threshold-based metrics cautiously."
 
     results["selected_model"] = {
         "name": best_model_name,
-        "selection_split": "temporal_holdout",
+        "selection_split": "inner_temporal_within_temporal_train",
         "selection_basis": selection_note,
-        "metrics": temporal_metrics[best_model_name],
+        "selection_details": selection_detail,
+        "temporal_holdout_metrics": temporal_metrics[best_model_name],
     }
 
     results_path = paths["models"] / OVERFIT_RESULTS_FILE
@@ -1369,6 +1642,20 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
     generate_temporal_holdout_poster_figures(paths["project_root"])
 
     full_models = _save_model_artifacts(dataset, paths)
+    if best_model_name not in full_models:
+        # Keep deployable model artifacts strict: blended diagnostics are evaluation-only.
+        deployable = [name for name in temporal_metrics.keys() if name in full_models]
+        if not deployable:
+            raise RuntimeError("No deployable model candidates found for artifact saving.")
+        best_model_name = max(
+            deployable,
+            key=lambda name: (temporal_metrics[name].get("f1", 0.0), temporal_metrics[name].get("pr_auc", 0.0)),
+        )
+        results["selected_model"]["name"] = best_model_name
+        results["selected_model"]["selection_basis"] += (
+            " Selected deployable model excludes evaluation-only blend diagnostics."
+        )
+        results["selected_model"]["temporal_holdout_metrics"] = temporal_metrics[best_model_name]
     selected_pipeline = full_models[best_model_name]
     importance_frame = _feature_importance_frame(selected_pipeline)
     importance_frame.to_csv(paths["tables"] / FEATURE_IMPORTANCE_TABLE_FILE, index=False)
