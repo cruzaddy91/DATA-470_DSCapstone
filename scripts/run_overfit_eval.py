@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Run the leakage-safe overfitting evaluation workflow."""
+"""Run the leakage-safe overfitting evaluation workflow (metrics JSON only).
+
+Prefer ``scripts/run_modeling.py`` for the full capstone path: same training plus
+threshold frontier report and model health dashboard HTML.
+"""
 
 import os
 import sys

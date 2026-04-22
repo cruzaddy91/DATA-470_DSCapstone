@@ -76,9 +76,10 @@ Candidates can include several tabular models (see the cockpit). The narrative s
 | `src/features/build_targets.py` | Builds the official `v2` order-time modeling table |
 | `src/models/v2_ordertime/` | Separate LR and LightGBM pipeline modules, shared preprocessing + evaluation; `classifier_registry.py` wires both |
 | `src/models/backorder_modeling.py` | Dataset prep, splits, orchestration, artifacts (imports `v2_ordertime` for models) |
-| `scripts/run_modeling.py` | Runs the modeling pipeline |
+| `scripts/run_modeling.py` | **Canonical** modeling run: train/eval, threshold report, model health dashboard |
+| `scripts/run_overfit_eval.py` | Optional **minimal** retrain (metrics only); prefer `run_modeling.py` for full artifacts |
 | `scripts/run_v2_full_chain.sh` | Runs data → targets → modeling → HTML → **notebook `.py` replacements** (EDA + summaries) |
-| `scripts/run_notebook_replacements.py` | Headless substitute for `notebooks/01–03` (writes `discovery_*.png`, CSVs, checks figure paths) |
+| `scripts/run_notebook_replacements.py` | EDA + report summaries (replaces removed notebooks; `discovery_*.png`, CSVs, figure checks) |
 | `scripts/generate_model_performance_side_by_side_html.py` | Writes a simple comparison report |
 | `models/classification_metrics_v2_ordertime.json` | Main saved classification metrics |
 

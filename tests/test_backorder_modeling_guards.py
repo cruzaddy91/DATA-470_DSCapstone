@@ -1,4 +1,4 @@
-"""Tests for split policy and notebook read-only behavior."""
+"""Tests for split policy and modeling-report script guardrails."""
 
 from __future__ import annotations
 
@@ -218,10 +218,10 @@ def test_poster_figures_generate_from_saved_scores(tmp_path: Path) -> None:
     assert Path(out["scores"]).exists()
 
 
-def test_modeling_notebook_is_read_only():
-    notebook = Path("notebooks/02_modeling.ipynb")
-    data = json.loads(notebook.read_text())
-    source = "\n".join("".join(cell.get("source", [])) for cell in data["cells"])
+def test_modeling_notebook_replacement_is_read_only():
+    """Former 02_modeling.ipynb was removed; replacement script must not train or write metrics."""
+    script = Path("scripts/run_modeling_notebook_export.py")
+    source = script.read_text(encoding="utf-8")
 
     forbidden_snippets = [
         "joblib.dump(",
