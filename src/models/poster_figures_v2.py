@@ -24,10 +24,19 @@ from sklearn.metrics import (
     roc_curve,
 )
 
-# Colorblind-friendly pair (Okabe–Ito inspired)
-COLOR_LR = "#0072B2"
-COLOR_LGB = "#D55E00"
-COLOR_BASELINE = "#999999"
+from westminster_poster_palette import (
+    COPPER,
+    FLINT,
+    NIGHT,
+    SKY,
+    THISTLE,
+    brand_confusion_heatmap_cmap,
+)
+
+# Westminster brand mapping
+COLOR_LR = NIGHT
+COLOR_LGB = COPPER
+COLOR_BASELINE = FLINT
 
 _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
@@ -134,7 +143,7 @@ def generate_temporal_holdout_poster_figures(project_root: str | Path | None = N
             rates = [float(row["positive_rate"]) * 100.0 for row in monthly]
             fig, ax = plt.subplots(figsize=(9, 4.5))
             x = range(len(months))
-            ax.plot(x, rates, color="#4C72B0", linewidth=2, marker="o", markersize=5)
+            ax.plot(x, rates, color=THISTLE, linewidth=2, marker="o", markersize=5)
             ax.set_xticks(list(x))
             ax.set_xticklabels(months, rotation=45, ha="right")
             ax.set_ylabel("Positive rate (%)")
@@ -160,8 +169,8 @@ def generate_temporal_holdout_poster_figures(project_root: str | Path | None = N
         for ax, (name, label_short) in zip(axes.flat, model_items):
             proba = np.asarray(models[name]["y_proba"], dtype=float)
             thr = float(models[name].get("decision_threshold", 0.5))
-            ax.hist(proba[y_true == 0], bins=40, alpha=0.65, color="#348ABD", label="No backorder", density=True)
-            ax.hist(proba[y_true == 1], bins=40, alpha=0.65, color="#A60628", label="Backorder", density=True)
+            ax.hist(proba[y_true == 0], bins=40, alpha=0.65, color=SKY, label="No backorder", density=True)
+            ax.hist(proba[y_true == 1], bins=40, alpha=0.65, color=NIGHT, label="Backorder", density=True)
             ax.axvline(thr, color="black", linestyle="--", linewidth=2, label=f"Threshold={thr:.3f}")
             ax.set_xlabel("Predicted P(backorder)")
             ax.set_ylabel("Density")
@@ -198,7 +207,7 @@ def generate_temporal_holdout_poster_figures(project_root: str | Path | None = N
                 ax=ax,
                 annot=ann,
                 fmt="",
-                cmap="Blues",
+                cmap=brand_confusion_heatmap_cmap(),
                 vmin=0.0,
                 vmax=1.0,
                 linewidths=2.0,

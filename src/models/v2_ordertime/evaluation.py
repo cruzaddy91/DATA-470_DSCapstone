@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from sklearn.base import clone
 import os
+from sklearn.pipeline import Pipeline
 
 
 def compute_classification_metrics(
@@ -40,6 +41,52 @@ def compute_classification_metrics(
         "roc_auc": roc_auc,
         "pr_auc": pr_auc,
     }
+
+
+def build_recency_sample_weights(
+    dates: pd.Series | np.ndarray,
+    *,
+    half_life_days: float = 90.0,
+    min_weight: float = 0.5,
+    max_weight: float = 3.0,
+) -> np.ndarray:
+    """Exponentially upweight more recent rows based on order_date."""
+    d = pd.to_datetime(pd.Series(dates), errors="coerce")
+    if d.notna().sum() == 0:
+        return np.ones(len(d), dtype=float)
+    anchor = d.max()
+    age_days = (anchor - d).dt.days.fillna(half_life_days * 2).clip(lower=0).astype(float)
+    raw = np.power(0.5, age_days / max(1e-6, float(half_life_days)))
+    raw = np.clip(raw, 0.0, None)
+    if np.isfinite(raw).sum() == 0 or float(raw.mean()) <= 0:
+        return np.ones(len(d), dtype=float)
+    weights = raw / float(raw.mean())
+    return np.clip(weights, float(min_weight), float(max_weight)).to_numpy(dtype=float)
+
+
+def fit_pipeline_maybe_weighted(
+    pipeline: Any,
+    X_train: pd.DataFrame,
+    y_train: pd.Series | np.ndarray,
+    sample_weight: np.ndarray | None,
+) -> Any:
+    """Fit pipeline with model sample_weight when supported; fallback to unweighted fit."""
+    if sample_weight is None:
+        pipeline.fit(X_train, y_train)
+        return pipeline
+    if isinstance(pipeline, Pipeline):
+        try:
+            pipeline.fit(X_train, y_train, model__sample_weight=sample_weight)
+            return pipeline
+        except TypeError:
+            pipeline.fit(X_train, y_train)
+            return pipeline
+    try:
+        pipeline.fit(X_train, y_train, sample_weight=sample_weight)
+        return pipeline
+    except TypeError:
+        pipeline.fit(X_train, y_train)
+        return pipeline
 
 
 def select_f1_max_threshold(
@@ -203,12 +250,17 @@ def threshold_from_train_temporal_tail(
     dates = pd.to_datetime(pd.Series(train_dates), errors="coerce")
     y_arr = y_train.to_numpy()
     precision_floor = float(os.environ.get("MODEL_PRECISION_FLOOR", "0.35"))
+    sparse_fallback_max = float(os.environ.get("MODEL_SPARSE_FALLBACK_MAX_THRESHOLD", "0.50"))
+    sparse_fallback_min = float(os.environ.get("MODEL_SPARSE_FALLBACK_MIN_THRESHOLD", "0.01"))
     meta: dict[str, float] = {}
 
     valid = dates.notna().to_numpy()
     if valid.sum() < 2:
         threshold, strategy, fallback_meta = threshold_from_train_oof(pipeline, X_train, y_train)
+        threshold = float(np.clip(threshold, sparse_fallback_min, sparse_fallback_max))
         fallback_meta["temporal_tail_fallback"] = 1.0
+        fallback_meta["sparse_calibration_fallback_min_threshold"] = float(sparse_fallback_min)
+        fallback_meta["sparse_calibration_fallback_max_threshold"] = float(sparse_fallback_max)
         return threshold, f"{strategy}_fallback_no_dates", fallback_meta
 
     unique_dates = np.sort(dates.loc[valid].drop_duplicates().to_numpy())
@@ -279,23 +331,54 @@ def threshold_from_train_temporal_tail(
 
     if len(tr_idx) == 0 or len(va_idx) == 0:
         threshold, strategy, fallback_meta = threshold_from_train_oof(pipeline, X_train, y_train)
+        threshold = float(np.clip(threshold, sparse_fallback_min, sparse_fallback_max))
         fallback_meta["temporal_tail_fallback"] = 1.0
+        fallback_meta["sparse_calibration_fallback_min_threshold"] = float(sparse_fallback_min)
+        fallback_meta["sparse_calibration_fallback_max_threshold"] = float(sparse_fallback_max)
         return threshold, f"{strategy}_fallback_empty_split", fallback_meta
+    if pd.Series(y_arr[tr_idx]).nunique() < 2:
+        threshold, strategy, fallback_meta = threshold_from_train_oof(pipeline, X_train, y_train)
+        threshold = float(np.clip(threshold, sparse_fallback_min, sparse_fallback_max))
+        fallback_meta["temporal_tail_fallback"] = 1.0
+        fallback_meta["temporal_tail_single_class_train"] = 1.0
+        fallback_meta["sparse_calibration_fallback_min_threshold"] = float(sparse_fallback_min)
+        fallback_meta["sparse_calibration_fallback_max_threshold"] = float(sparse_fallback_max)
+        return threshold, f"{strategy}_fallback_single_class_train", fallback_meta
 
+    use_recency_weights = os.environ.get("MODEL_USE_RECENCY_WEIGHTS", "1") == "1"
+    recency_half_life = float(os.environ.get("MODEL_RECENCY_HALFLIFE_DAYS", "90"))
+    sample_weight = None
+    if use_recency_weights:
+        tr_dates = dates.iloc[tr_idx]
+        sample_weight = build_recency_sample_weights(tr_dates, half_life_days=recency_half_life)
     pipe = clone(pipeline)
-    pipe.fit(X_train.iloc[tr_idx], y_train.iloc[tr_idx])
+    fit_pipeline_maybe_weighted(pipe, X_train.iloc[tr_idx], y_train.iloc[tr_idx], sample_weight)
     y_va = y_arr[va_idx]
     p_va = pipe.predict_proba(X_train.iloc[va_idx])[:, 1]
     val_pos_count = int((y_va == 1).sum())
     if val_pos_count < min_calibration_positives:
+        # Sparse tail support is too low for stable tail-threshold calibration.
+        # Fall back to train-only OOF thresholding instead of fixed 0.5 to keep
+        # the policy leak-safe while still adapting to available train signal.
+        fallback_thr, fallback_strategy, fallback_meta = threshold_from_train_oof(
+            pipeline,
+            X_train,
+            y_train,
+        )
+        fallback_thr = float(np.clip(fallback_thr, sparse_fallback_min, sparse_fallback_max))
         meta["val_rows"] = float(len(va_idx))
         meta["val_positives"] = float(val_pos_count)
         meta["val_window_days"] = float(int((max_date - used_cutoff).days))
         meta["val_unique_dates"] = float(int(pd.Index(dates.iloc[va_idx]).nunique()))
         meta["val_cutoff_shift_days"] = float(int((chosen_cutoff - used_cutoff).days))
-        meta["sparse_calibration_fallback_threshold"] = 0.5
         meta["minimum_calibration_positives"] = float(min_calibration_positives)
-        return 0.5, "temporal_tail_fallback_0.5_sparse_positives", meta
+        meta["sparse_calibration_fallback_threshold"] = float(fallback_thr)
+        meta["sparse_calibration_fallback_used_oof_train"] = 1.0
+        meta["sparse_calibration_fallback_min_threshold"] = float(sparse_fallback_min)
+        meta["sparse_calibration_fallback_max_threshold"] = float(sparse_fallback_max)
+        for key, value in fallback_meta.items():
+            meta[f"sparse_fallback_{key}"] = float(value)
+        return fallback_thr, f"temporal_tail_sparse_fallback__{fallback_strategy}", meta
 
     guard_min_pred_pos = max(1, int(np.ceil((y_va == 1).sum() * 0.5)))
     threshold, objective = select_threshold_with_precision_floor(
@@ -313,6 +396,8 @@ def threshold_from_train_temporal_tail(
     meta["val_window_days"] = float(int((max_date - used_cutoff).days))
     meta["val_unique_dates"] = float(int(pd.Index(dates.iloc[va_idx]).nunique()))
     meta["val_cutoff_shift_days"] = float(int((chosen_cutoff - used_cutoff).days))
+    meta["recency_weighting"] = 1.0 if use_recency_weights else 0.0
+    meta["recency_half_life_days"] = float(recency_half_life) if use_recency_weights else 0.0
     return threshold, f"{used_strategy}__{objective}", meta
 
 
@@ -333,6 +418,7 @@ def evaluate_classifier_train_test_split(
     X_test = dataset.features.iloc[test_index]
     y_test = dataset.target.iloc[test_index]
 
+    train_dates = None
     if threshold_mode == "temporal_tail":
         train_dates = dataset.meta.iloc[train_index]["order_date"]
         threshold, strategy, thresh_meta = threshold_from_train_temporal_tail(
@@ -344,8 +430,13 @@ def evaluate_classifier_train_test_split(
     else:
         threshold, strategy, thresh_meta = threshold_from_train_oof(pipeline, X_train, y_train)
 
+    sample_weight = None
+    use_recency_weights = os.environ.get("MODEL_USE_RECENCY_WEIGHTS", "1") == "1"
+    if train_dates is not None and use_recency_weights:
+        recency_half_life = float(os.environ.get("MODEL_RECENCY_HALFLIFE_DAYS", "90"))
+        sample_weight = build_recency_sample_weights(train_dates, half_life_days=recency_half_life)
     pipeline_final = clone(pipeline)
-    pipeline_final.fit(X_train, y_train)
+    fit_pipeline_maybe_weighted(pipeline_final, X_train, y_train, sample_weight)
     y_proba = pipeline_final.predict_proba(X_test)[:, 1]
     y_pred = (y_proba >= threshold).astype(int)
 

@@ -1,9 +1,12 @@
 # Data Science Capstone — dependencies
 # Install: pip install -r requirements.txt
+# If ``import matplotlib`` fails with a NumPy binary mismatch, use an isolated env:
+#   bash setup_venv.sh   then   .venv/bin/python …
 
 # Data and ETL
-pandas>=2.0
-numpy>=1.24,<2
+pandas>=2.0,<3
+# NumPy 2.x needs matplotlib>=3.9 wheels; pin range so conda/pip do not mix 1.x-built matplotlib with numpy 2.
+numpy>=1.26,<3
 pyarrow>=14.0
 
 # Kaggle download (optional)
@@ -15,13 +18,13 @@ ipykernel>=6.0
 notebook>=7.0
 
 # Analysis and modeling
-scikit-learn>=1.3,<1.6
-scipy>=1.11,<1.14
+scikit-learn>=1.3,<1.7
+scipy>=1.11,<1.15
 statsmodels>=0.14
 
-# Visualization
-matplotlib>=3.7,<3.10
-seaborn>=0.12
+# Visualization (matplotlib<3.9 may ship binaries incompatible with numpy 2.x)
+matplotlib>=3.9.0,<3.11
+seaborn>=0.13.0,<0.17
 
 # Gradient boosting (for tabular ML)
 xgboost>=2.0
@@ -30,3 +33,7 @@ catboost>=1.2
 
 # Utils
 python-dotenv>=1.0
+
+# Poster PPTX (fact build, ``build_poster.py`` / ``render_poster_pptx.py``)
+python-pptx>=0.6,<2
+Pillow>=10.0,<12

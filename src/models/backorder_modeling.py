@@ -13,8 +13,10 @@ from sklearn.base import clone
 
 from src.models.v2_ordertime.classifier_registry import build_all_v2_binary_classifiers
 from src.models.v2_ordertime.evaluation import (
+    build_recency_sample_weights,
     compute_classification_metrics,
     evaluate_classifier_train_test_split,
+    fit_pipeline_maybe_weighted,
     select_threshold_with_precision_floor,
     threshold_from_train_temporal_tail,
     threshold_from_train_oof,
@@ -32,6 +34,18 @@ os.environ.setdefault("MPLCONFIGDIR", str(_DEFAULT_MPL_DIR))
 import joblib
 import numpy as np
 import pandas as pd
+try:
+    from westminster_poster_palette import BIRCH, COPPER, FLINT, NIGHT, SKY, THISTLE
+    from westminster_poster_palette import brand_confusion_heatmap_cmap
+except Exception:  # pragma: no cover - fallback only
+    NIGHT = "#211551"
+    COPPER = "#9D581F"
+    FLINT = "#101820"
+    BIRCH = "#F1F1DE"
+    THISTLE = "#8252C7"
+    SKY = "#00B5E2"
+    def brand_confusion_heatmap_cmap():
+        return "Blues"
 
 from src.features.build_targets import (
     DATE_COLUMN as ORDERTIME_DATE_COLUMN,
@@ -88,6 +102,7 @@ MODEL_FILE_MAP = {
     "lightgbm": f"backorder_lightgbm{ARTIFACT_SUFFIX}.joblib",
     "xgboost": f"backorder_xgboost{ARTIFACT_SUFFIX}.joblib",
     "catboost": f"backorder_catboost{ARTIFACT_SUFFIX}.joblib",
+    "soft_vote_lr_lightgbm": f"backorder_soft_vote_lr_lightgbm{ARTIFACT_SUFFIX}.joblib",
 }
 
 CLASSIFICATION_METRICS_FILE = f"classification_metrics{ARTIFACT_SUFFIX}.json"
@@ -102,6 +117,21 @@ FEATURE_IMPORTANCE_TABLE_FILE = f"classification_feature_importance{ARTIFACT_SUF
 MODEL_COMPARISON_TABLE_FILE = f"classification_model_comparison{ARTIFACT_SUFFIX}.csv"
 DEMAND_FORECAST_TABLE_FILE = f"demand_forecast{ARTIFACT_SUFFIX}.csv"
 EXCESS_INVENTORY_TABLE_FILE = f"excess_inventory{ARTIFACT_SUFFIX}.csv"
+EVIDENCE_SCATTER_FILE = f"evidence_precision_recall_scatter{ARTIFACT_SUFFIX}.png"
+EVIDENCE_CI_ERRORBAR_FILE = f"evidence_ci_errorbars{ARTIFACT_SUFFIX}.png"
+EVIDENCE_PVALUE_HIST_FILE = f"evidence_pvalue_bootstrap_hist{ARTIFACT_SUFFIX}.png"
+EVIDENCE_PR_GAIN_FILE = f"evidence_pr_gain{ARTIFACT_SUFFIX}.png"
+EVIDENCE_DECISION_CURVE_FILE = f"evidence_decision_curve{ARTIFACT_SUFFIX}.png"
+EVIDENCE_DET_FILE = f"evidence_det_curve{ARTIFACT_SUFFIX}.png"
+EVIDENCE_BRIER_FILE = f"evidence_brier_decomposition{ARTIFACT_SUFFIX}.png"
+EVIDENCE_CALIBRATION_FILE = f"evidence_calibration_ci{ARTIFACT_SUFFIX}.png"
+EVIDENCE_LIFT_GAINS_FILE = f"evidence_lift_gains{ARTIFACT_SUFFIX}.png"
+EVIDENCE_KS_FILE = f"evidence_ks_curve{ARTIFACT_SUFFIX}.png"
+EVIDENCE_PERM_IMPORTANCE_CI_FILE = f"evidence_permutation_importance_ci{ARTIFACT_SUFFIX}.png"
+EVIDENCE_PDP_ICE_FILE = f"evidence_pdp_ice_top3{ARTIFACT_SUFFIX}.png"
+EVIDENCE_DRIFT_PERF_FILE = f"evidence_drift_performance_overlay{ARTIFACT_SUFFIX}.png"
+EVIDENCE_MODEL_HEATMAP_LIVE_FILE = f"evidence_model_comparison_heatmap_live{ARTIFACT_SUFFIX}.png"
+EVIDENCE_TEMPORAL_SNAPSHOT_LIVE_FILE = f"evidence_temporal_snapshot_live{ARTIFACT_SUFFIX}.png"
 
 TEMPORAL_TEST_DATE_SHARE = 0.2
 TEMPORAL_TEST_MIN_POSITIVES = 50
@@ -112,6 +142,9 @@ TEMPORAL_TEST_MIN_DAYS = 90
 RECENT_WINDOW_WEEKS = 24
 RECENT_WINDOW_MIN_TEST_POSITIVES = 10
 RECENT_WINDOW_MIN_TEST_DAYS = 14
+RECENT_WINDOW_TARGET_MIN_POSITIVES = 40
+RECENT_WINDOW_MAX_EXPANSION_DAYS = 270
+RECENT_WINDOW_EXPANSION_STEP_WEEKS = 4
 
 # Logistic regression on only outstanding_qty + saleable_inventory (label-defining quantities).
 OSQ_SI_LOGISTIC_MODEL_NAME = "logistic_osq_si_only"
@@ -129,6 +162,23 @@ class PreparedDataset:
     missing_indicator_features: list[str]
     # Snapshot backorder label only: OSQ/SI aligned row-wise for rule + two-feature logistic (not in sklearn X).
     osq_si_label_inputs: pd.DataFrame | None = None
+
+
+@dataclass
+class SoftVoteBinaryEnsemble:
+    """Simple average-probability ensemble over fitted binary estimators."""
+
+    estimators: list[Any]
+
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        if not self.estimators:
+            raise ValueError("SoftVoteBinaryEnsemble requires at least one estimator.")
+        probs = [np.asarray(est.predict_proba(X), dtype=float)[:, 1] for est in self.estimators]
+        avg = np.mean(np.vstack(probs), axis=0)
+        return np.column_stack([1.0 - avg, avg])
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
 
 
 def _get_paths(project_root: str | Path | None = None) -> dict[str, Path]:
@@ -725,6 +775,7 @@ def _evaluate_models(
     if "logistic_regression" in predictions and "lightgbm" in predictions:
         p_lr = np.asarray(predictions["logistic_regression"]["y_proba"], dtype=float)
         p_lgb = np.asarray(predictions["lightgbm"]["y_proba"], dtype=float)
+        blend_weight_lr = 0.5
         p_blend = 0.5 * p_lr + 0.5 * p_lgb
         y_test = dataset.target.iloc[test_index].to_numpy()
 
@@ -780,25 +831,39 @@ def _evaluate_models(
                             used_cutoff = candidate
                             break
 
-                if len(tr_idx) > 0 and len(va_idx) > 0:
+                if (
+                    len(tr_idx) > 0
+                    and len(va_idx) > 0
+                    and pd.Series(y_train_arr[tr_idx]).nunique() >= 2
+                ):
                     from copy import deepcopy
 
                     base_models = build_all_v2_binary_classifiers(dataset, dataset.target.iloc[train_index])
                     lr_pipe = deepcopy(base_models["logistic_regression"])
                     lgb_pipe = deepcopy(base_models["lightgbm"])
-                    lr_pipe.fit(X_train.iloc[tr_idx], y_train_arr[tr_idx])
-                    lgb_pipe.fit(X_train.iloc[tr_idx], y_train_arr[tr_idx])
-                    p_va = 0.5 * lr_pipe.predict_proba(X_train.iloc[va_idx])[:, 1] + 0.5 * lgb_pipe.predict_proba(
-                        X_train.iloc[va_idx]
-                    )[:, 1]
+                    use_recency_weights = os.environ.get("MODEL_USE_RECENCY_WEIGHTS", "1") == "1"
+                    sample_weight = None
+                    if use_recency_weights:
+                        half_life = float(os.environ.get("MODEL_RECENCY_HALFLIFE_DAYS", "90"))
+                        sample_weight = build_recency_sample_weights(
+                            dates.iloc[tr_idx],
+                            half_life_days=half_life,
+                        )
+                    fit_pipeline_maybe_weighted(lr_pipe, X_train.iloc[tr_idx], y_train_arr[tr_idx], sample_weight)
+                    fit_pipeline_maybe_weighted(lgb_pipe, X_train.iloc[tr_idx], y_train_arr[tr_idx], sample_weight)
+                    p_va_lr = lr_pipe.predict_proba(X_train.iloc[va_idx])[:, 1]
+                    p_va_lgb = lgb_pipe.predict_proba(X_train.iloc[va_idx])[:, 1]
                     precision_floor = float(os.environ.get("MODEL_PRECISION_FLOOR", "0.35"))
                     guard = max(1, int(np.ceil((y_train_arr[va_idx] == 1).sum() * 0.5)))
+                    p_va = 0.5 * p_va_lr + 0.5 * p_va_lgb
                     threshold, objective = select_threshold_with_precision_floor(
                         y_train_arr[va_idx],
                         p_va,
                         precision_floor=precision_floor,
                         min_predicted_positives=guard,
                     )
+                    blend_weight_lr = 0.5
+                    p_blend = blend_weight_lr * p_lr + (1.0 - blend_weight_lr) * p_lgb
                     strategy = (
                         "temporal_tail_min_pos_min_days__adaptive_window_for_positive_support__"
                         f"{objective}__soft_vote_lr_lightgbm"
@@ -809,6 +874,15 @@ def _evaluate_models(
                         "threshold_calibration_val_window_days": float(int((max_date - used_cutoff).days)),
                         "threshold_calibration_precision_floor": float(precision_floor),
                         "threshold_calibration_guard_min_predicted_positives": float(guard),
+                        "blend_weight_lr": float(blend_weight_lr),
+                        "blend_weight_lightgbm": float(1.0 - blend_weight_lr),
+                    }
+                elif len(tr_idx) > 0 and len(va_idx) > 0:
+                    threshold = float(os.environ.get("MODEL_SOFT_VOTE_SINGLE_CLASS_FALLBACK_THRESHOLD", "0.35"))
+                    strategy = "fixed_soft_vote__fallback_single_class_temporal_tail_train"
+                    meta = {
+                        "threshold_calibration_single_class_train_fallback": 1.0,
+                        "threshold_calibration_single_class_fallback_threshold": float(threshold),
                     }
 
         y_pred = (p_blend >= threshold).astype(int)
@@ -816,6 +890,8 @@ def _evaluate_models(
         blend_metrics["decision_threshold"] = float(threshold)
         blend_metrics["threshold_calibration_strategy"] = strategy
         blend_metrics["threshold_calibration_train_rows"] = float(len(train_index))
+        blend_metrics["blend_weight_lr"] = float(blend_weight_lr)
+        blend_metrics["blend_weight_lightgbm"] = float(1.0 - blend_weight_lr)
         blend_metrics.update(meta)
         metrics_by_model["soft_vote_lr_lightgbm"] = blend_metrics
         predictions["soft_vote_lr_lightgbm"] = {"y_pred": y_pred, "y_proba": p_blend}
@@ -853,8 +929,10 @@ def _select_model_from_temporal_train(
     best_model_name = max(
         inner_metrics,
         key=lambda name: (
-            inner_metrics[name].get("pr_auc", 0.0),
             inner_metrics[name].get("f1", 0.0),
+            inner_metrics[name].get("pr_auc", 0.0),
+            inner_metrics[name].get("recall", 0.0),
+            inner_metrics[name].get("precision", 0.0),
         ),
     )
     return best_model_name, {"inner_temporal_split": inner_split, "inner_metrics": inner_metrics}
@@ -947,43 +1025,44 @@ def _recent_24_week_temporal_split_indices(
         raise ValueError("Recent-window split requires at least one valid order_date.")
 
     anchor = pd.Timestamp(dates[valid_mask].max())
-    window_start = anchor - pd.Timedelta(weeks=RECENT_WINDOW_WEEKS)
-    in_window = ((dates >= window_start) & (dates <= anchor)).to_numpy()
-    window_indices = np.flatnonzero(in_window & valid_mask)
-    if len(window_indices) < 2:
-        raise ValueError("Recent-window split: fewer than two rows in the 24-week window.")
+    target_min_pos = int(os.environ.get("MODEL_MIN_RECENT_HOLDOUT_POSITIVES", str(RECENT_WINDOW_TARGET_MIN_POSITIVES)))
+    max_expansion_days = int(
+        os.environ.get("MODEL_RECENT_HOLDOUT_MAX_EXPANSION_DAYS", str(RECENT_WINDOW_MAX_EXPANSION_DAYS))
+    )
+    step_weeks = int(os.environ.get("MODEL_RECENT_HOLDOUT_EXPANSION_STEP_WEEKS", str(RECENT_WINDOW_EXPANSION_STEP_WEEKS)))
+    min_train_rows = int(os.environ.get("MODEL_MIN_RECENT_TRAIN_ROWS", "500"))
+    min_train_days = int(os.environ.get("MODEL_MIN_RECENT_TRAIN_DAYS", "28"))
 
-    window_dates = dates.iloc[window_indices]
-    unique_dates = np.sort(np.unique(window_dates.dropna().to_numpy()))
-    if len(unique_dates) < 2:
-        raise ValueError("Recent-window split requires at least two unique order dates in the window.")
+    best_result: tuple[np.ndarray, np.ndarray, pd.Timestamp, pd.Timestamp, str] | None = None
+    support_pass = False
+    expanded = False
+    window_weeks = RECENT_WINDOW_WEEKS
+    max_weeks = max(RECENT_WINDOW_WEEKS, int(np.ceil(max_expansion_days / 7.0)))
 
-    def _split_at_cutoff(cutoff: pd.Timestamp) -> tuple[np.ndarray, np.ndarray]:
-        train_mask = in_window & valid_mask & (dates < cutoff).to_numpy()
-        test_mask = in_window & valid_mask & (dates >= cutoff).to_numpy()
-        return np.flatnonzero(train_mask), np.flatnonzero(test_mask)
-
-    selected_cutoff: pd.Timestamp | None = None
-    selected_strategy = ""
-
-    for raw_cutoff in unique_dates[::-1]:
-        cutoff = pd.Timestamp(raw_cutoff)
-        if cutoff <= window_start:
+    while window_weeks <= max_weeks:
+        window_start = anchor - pd.Timedelta(weeks=window_weeks)
+        in_window = ((dates >= window_start) & (dates <= anchor)).to_numpy()
+        window_indices = np.flatnonzero(in_window & valid_mask)
+        if len(window_indices) < 2:
+            window_weeks += step_weeks
+            expanded = True
             continue
-        train_index, test_index = _split_at_cutoff(cutoff)
-        if len(train_index) == 0 or len(test_index) == 0:
-            continue
-        test_positives = int(dataset.target.iloc[test_index].sum())
-        test_span_days = int((anchor - cutoff).days)
-        if (
-            test_positives >= RECENT_WINDOW_MIN_TEST_POSITIVES
-            and test_span_days >= RECENT_WINDOW_MIN_TEST_DAYS
-        ):
-            selected_cutoff = cutoff
-            selected_strategy = "recent_window_temporal_with_minimum_positive_support"
-            break
 
-    if selected_cutoff is None:
+        window_dates = dates.iloc[window_indices]
+        unique_dates = np.sort(np.unique(window_dates.dropna().to_numpy()))
+        if len(unique_dates) < 2:
+            window_weeks += step_weeks
+            expanded = True
+            continue
+
+        def _split_at_cutoff(cutoff: pd.Timestamp) -> tuple[np.ndarray, np.ndarray]:
+            train_mask = in_window & valid_mask & (dates < cutoff).to_numpy()
+            test_mask = in_window & valid_mask & (dates >= cutoff).to_numpy()
+            return np.flatnonzero(train_mask), np.flatnonzero(test_mask)
+
+        selected_cutoff: pd.Timestamp | None = None
+        selected_strategy = ""
+
         for raw_cutoff in unique_dates[::-1]:
             cutoff = pd.Timestamp(raw_cutoff)
             if cutoff <= window_start:
@@ -991,34 +1070,105 @@ def _recent_24_week_temporal_split_indices(
             train_index, test_index = _split_at_cutoff(cutoff)
             if len(train_index) == 0 or len(test_index) == 0:
                 continue
+            train_days = int((cutoff - window_start).days)
+            if len(train_index) < min_train_rows or train_days < min_train_days:
+                continue
             test_positives = int(dataset.target.iloc[test_index].sum())
             test_span_days = int((anchor - cutoff).days)
-            if test_positives > 0 and test_span_days >= RECENT_WINDOW_MIN_TEST_DAYS:
+            if test_positives >= target_min_pos and test_span_days >= RECENT_WINDOW_MIN_TEST_DAYS:
                 selected_cutoff = cutoff
-                selected_strategy = "recent_window_temporal_with_any_positive_support"
+                selected_strategy = "recent_window_temporal_with_target_positive_support"
+                support_pass = True
                 break
 
-    if selected_cutoff is None:
-        default_position = max(1, int(np.floor(len(unique_dates) * 0.8)))
-        default_position = min(default_position, len(unique_dates) - 1)
-        selected_cutoff = pd.Timestamp(unique_dates[default_position])
-        selected_strategy = "recent_window_temporal_fallback_20pct_unique_dates"
+        if selected_cutoff is None:
+            for raw_cutoff in unique_dates[::-1]:
+                cutoff = pd.Timestamp(raw_cutoff)
+                if cutoff <= window_start:
+                    continue
+                train_index, test_index = _split_at_cutoff(cutoff)
+                if len(train_index) == 0 or len(test_index) == 0:
+                    continue
+                train_days = int((cutoff - window_start).days)
+                if len(train_index) < min_train_rows or train_days < min_train_days:
+                    continue
+                test_positives = int(dataset.target.iloc[test_index].sum())
+                test_span_days = int((anchor - cutoff).days)
+                if test_positives >= RECENT_WINDOW_MIN_TEST_POSITIVES and test_span_days >= RECENT_WINDOW_MIN_TEST_DAYS:
+                    selected_cutoff = cutoff
+                    selected_strategy = "recent_window_temporal_with_minimum_positive_support"
+                    break
 
-    train_index, test_index = _split_at_cutoff(selected_cutoff)
+        if selected_cutoff is None:
+            default_position = max(1, int(np.floor(len(unique_dates) * 0.8)))
+            default_position = min(default_position, len(unique_dates) - 1)
+            selected_cutoff = pd.Timestamp(unique_dates[default_position])
+            selected_strategy = "recent_window_temporal_fallback_20pct_unique_dates"
+
+        train_index, test_index = _split_at_cutoff(selected_cutoff)
+        best_result = (train_index, test_index, selected_cutoff, window_start, selected_strategy)
+        if support_pass:
+            break
+        window_weeks += step_weeks
+        expanded = True
+
+    if best_result is None:
+        raise ValueError("Recent-window split could not produce a valid temporal split.")
+    train_index, test_index, selected_cutoff, window_start, selected_strategy = best_result
 
     split_metadata: dict[str, Any] = {
         "anchor_date": anchor.strftime("%Y-%m-%d"),
         "window_start_date": window_start.strftime("%Y-%m-%d"),
-        "window_weeks": RECENT_WINDOW_WEEKS,
+        "window_weeks": int((anchor - window_start).days // 7),
         "split_date": selected_cutoff.strftime("%Y-%m-%d"),
         "strategy": selected_strategy,
-        "window_row_count": int(np.count_nonzero(in_window & valid_mask)),
+        "window_expanded": bool(expanded),
+        "target_min_test_positives": target_min_pos,
+        "target_positive_support_passed": bool(support_pass),
+        "window_row_count": int(len(train_index) + len(test_index)),
         "minimum_test_positives": RECENT_WINDOW_MIN_TEST_POSITIVES,
         "minimum_test_window_days": RECENT_WINDOW_MIN_TEST_DAYS,
+        "minimum_train_rows": int(min_train_rows),
+        "minimum_train_days": int(min_train_days),
         "test_window_days": int((anchor - selected_cutoff).days),
         "test_unique_dates": int(pd.Index(dates.iloc[test_index]).nunique()),
     }
     return train_index, test_index, split_metadata
+
+
+def _bootstrap_metric_cis(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    *,
+    n_boot: int = 500,
+    alpha: float = 0.95,
+) -> dict[str, dict[str, float]]:
+    from sklearn.metrics import f1_score, precision_score, recall_score
+
+    rng = np.random.default_rng(42)
+    y_true = np.asarray(y_true).astype(int)
+    y_pred = np.asarray(y_pred).astype(int)
+    n = len(y_true)
+    if n == 0:
+        return {}
+    prec_vals: list[float] = []
+    rec_vals: list[float] = []
+    f1_vals: list[float] = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        yt = y_true[idx]
+        yp = y_pred[idx]
+        prec_vals.append(float(precision_score(yt, yp, zero_division=0)))
+        rec_vals.append(float(recall_score(yt, yp, zero_division=0)))
+        f1_vals.append(float(f1_score(yt, yp, zero_division=0)))
+    lo = (1.0 - alpha) / 2.0
+    hi = 1.0 - lo
+
+    def _ci(vals: list[float]) -> dict[str, float]:
+        arr = np.asarray(vals, dtype=float)
+        return {"low": float(np.quantile(arr, lo)), "high": float(np.quantile(arr, hi))}
+
+    return {"precision": _ci(prec_vals), "recall": _ci(rec_vals), "f1": _ci(f1_vals)}
 
 
 def _group_split_indices(dataset: PreparedDataset) -> tuple[np.ndarray, np.ndarray]:
@@ -1308,6 +1458,94 @@ def _target_stability_summary(modeling: pd.DataFrame) -> dict[str, Any]:
     }
 
 
+def _enforce_label_maturity_gate(
+    diagnostics: dict[str, Any],
+    *,
+    strict: bool = True,
+) -> dict[str, Any]:
+    """
+    Guardrail against unstable temporal labels.
+
+    Uses target-stability windows produced by diagnostics and enforces minimum recent
+    label coverage and positive support thresholds. Strict mode raises, warn mode logs only.
+    """
+    stability = diagnostics.get("target_stability") or {}
+    windows = stability.get("recent_windows") or {}
+    w180 = windows.get("last_180_days") or {}
+    w90 = windows.get("last_90_days") or {}
+
+    cov180 = float(w180.get("label_coverage", 0.0))
+    pos180 = int(w180.get("positives", 0))
+    cov90 = float(w90.get("label_coverage", 0.0))
+    pos90 = int(w90.get("positives", 0))
+
+    profile = os.environ.get("MODEL_LABEL_MATURITY_PROFILE", "balanced").strip().lower()
+    profile_thresholds: dict[str, dict[str, float | int]] = {
+        "conservative": {
+            "min_cov_180": 0.60,
+            "min_pos_180": 60,
+            "min_cov_90": 0.40,
+            "min_pos_90": 25,
+        },
+        "balanced": {
+            "min_cov_180": 0.50,
+            "min_pos_180": 40,
+            "min_cov_90": 0.30,
+            "min_pos_90": 15,
+        },
+        "exploratory": {
+            "min_cov_180": 0.35,
+            "min_pos_180": 25,
+            "min_cov_90": 0.20,
+            "min_pos_90": 8,
+        },
+    }
+    if profile not in profile_thresholds:
+        print(f"[WARN] Unknown MODEL_LABEL_MATURITY_PROFILE='{profile}', using 'balanced'")
+        profile = "balanced"
+    selected = profile_thresholds[profile]
+    min_cov_180 = float(os.environ.get("MODEL_MIN_LABEL_COVERAGE_180D", str(selected["min_cov_180"])))
+    min_pos_180 = int(os.environ.get("MODEL_MIN_POSITIVES_180D", str(selected["min_pos_180"])))
+    min_cov_90 = float(os.environ.get("MODEL_MIN_LABEL_COVERAGE_90D", str(selected["min_cov_90"])))
+    min_pos_90 = int(os.environ.get("MODEL_MIN_POSITIVES_90D", str(selected["min_pos_90"])))
+
+    failures: list[str] = []
+    if cov180 < min_cov_180:
+        failures.append(f"last_180_days label_coverage {cov180:.3f} < {min_cov_180:.3f}")
+    if pos180 < min_pos_180:
+        failures.append(f"last_180_days positives {pos180} < {min_pos_180}")
+    if cov90 < min_cov_90:
+        failures.append(f"last_90_days label_coverage {cov90:.3f} < {min_cov_90:.3f}")
+    if pos90 < min_pos_90:
+        failures.append(f"last_90_days positives {pos90} < {min_pos_90}")
+
+    gate_payload = {
+        "strict_mode": bool(strict),
+        "profile": profile,
+        "thresholds": {
+            "min_cov_180": min_cov_180,
+            "min_pos_180": min_pos_180,
+            "min_cov_90": min_cov_90,
+            "min_pos_90": min_pos_90,
+        },
+        "observed": {
+            "cov180": cov180,
+            "pos180": pos180,
+            "cov90": cov90,
+            "pos90": pos90,
+        },
+        "passed": len(failures) == 0,
+        "failures": failures,
+    }
+
+    if failures:
+        msg = "Label maturity gate failed: " + "; ".join(failures)
+        if strict:
+            raise RuntimeError(msg)
+        print(f"[WARN] {msg}")
+    return gate_payload
+
+
 def _save_temporal_holdout_scores(
     y_true: pd.Series,
     temporal_metrics: dict[str, dict[str, Any]],
@@ -1340,6 +1578,63 @@ def _save_temporal_holdout_scores(
     output_path.write_text(json.dumps(payload, indent=2))
 
 
+def _build_split_baselines(
+    y_true: pd.Series | np.ndarray,
+    *,
+    train_positive_rate: float,
+) -> dict[str, dict[str, float]]:
+    """Transparent non-model baselines for imbalanced binary classification."""
+    y = np.asarray(y_true).astype(int)
+    n = len(y)
+    if n == 0:
+        return {}
+
+    # Majority baseline: predict no backorder for all rows.
+    always_negative_pred = np.zeros(n, dtype=int)
+    always_negative_proba = np.zeros(n, dtype=float)
+    always_negative_metrics = compute_classification_metrics(y, always_negative_pred, always_negative_proba)
+    always_negative_metrics["decision_threshold"] = 0.5
+    always_negative_metrics["baseline_note"] = "Predicts negative for every row."
+
+    # Random baseline: Bernoulli predictions at train prevalence, no feature signal.
+    rng = np.random.default_rng(42)
+    p = float(np.clip(train_positive_rate, 0.0, 1.0))
+    random_pred = (rng.random(n) < p).astype(int)
+    random_proba = np.full(n, p, dtype=float)
+    random_metrics = compute_classification_metrics(y, random_pred, random_proba)
+    random_metrics["decision_threshold"] = 0.5
+    random_metrics["baseline_note"] = "Random Bernoulli predictions at train positive rate."
+    random_metrics["train_positive_rate"] = p
+
+    return {
+        "always_negative": always_negative_metrics,
+        "prevalence_random": random_metrics,
+    }
+
+
+def _build_model_vs_baseline_lift(
+    model_metrics: dict[str, dict[str, Any]],
+    baselines: dict[str, dict[str, float]],
+    *,
+    baseline_name: str = "prevalence_random",
+) -> dict[str, dict[str, float]]:
+    """Compute per-model metric lift against a named baseline."""
+    baseline = baselines.get(baseline_name, {})
+    if not baseline:
+        return {}
+    tracked = ("accuracy", "precision", "recall", "f1", "roc_auc", "pr_auc")
+    lifts: dict[str, dict[str, float]] = {}
+    for model_name, metrics in model_metrics.items():
+        row: dict[str, float] = {"baseline": baseline_name}
+        for metric in tracked:
+            m_val = metrics.get(metric)
+            b_val = baseline.get(metric)
+            if isinstance(m_val, (int, float)) and isinstance(b_val, (int, float)):
+                row[f"delta_{metric}"] = float(m_val - b_val)
+        lifts[model_name] = row
+    return lifts
+
+
 def _plot_confusion_matrices(
     y_true: pd.Series,
     temporal_predictions: dict[str, dict[str, np.ndarray]],
@@ -1358,7 +1653,7 @@ def _plot_confusion_matrices(
             cm,
             annot=True,
             fmt="d",
-            cmap="Blues",
+            cmap=brand_confusion_heatmap_cmap(),
             ax=ax,
             xticklabels=["No", "Yes"],
             yticklabels=["No", "Yes"],
@@ -1391,13 +1686,489 @@ def _feature_importance_frame(model_pipeline: Pipeline) -> pd.DataFrame:
 def _plot_feature_importance(importance_frame: pd.DataFrame, output_path: Path) -> None:
     plt, sns = _get_plotting_modules()
     fig, ax = plt.subplots(figsize=(9, 6))
-    sns.barplot(data=importance_frame, x="importance", y="feature", ax=ax, orient="h")
+    sns.barplot(data=importance_frame, x="importance", y="feature", ax=ax, orient="h", color=NIGHT)
     ax.set_title("Leakage-Safe Order-Time Feature Importance")
     ax.set_xlabel("Importance")
     ax.set_ylabel("Feature")
     plt.tight_layout()
     fig.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
+
+
+def _plot_evidence_bundle(
+    results: dict[str, Any],
+    temporal_models: dict[str, Any],
+    temporal_predictions: dict[str, dict[str, np.ndarray]],
+    recent_predictions: dict[str, dict[str, np.ndarray]],
+    dataset: PreparedDataset,
+    temporal_test_index: np.ndarray,
+    recent_test_index: np.ndarray,
+    paths: dict[str, Path],
+) -> None:
+    """High-signal validation visuals for dashboard evidence."""
+    plt, sns = _get_plotting_modules()
+    from sklearn.metrics import (
+        det_curve,
+        precision_recall_curve,
+        roc_curve,
+        brier_score_loss,
+        f1_score,
+    )
+    from sklearn.inspection import permutation_importance, PartialDependenceDisplay
+    brand = {
+        "night": NIGHT,
+        "copper": COPPER,
+        "flint": FLINT,
+        "birch": BIRCH,
+        "thistle": THISTLE,
+        "sky": SKY,
+    }
+
+    # 1) Scatter: precision vs recall, sized by PR-AUC, faceted by split.
+    rows: list[dict[str, Any]] = []
+    for split_name in ["temporal_holdout", "group_holdout", "recent_24_week_temporal_holdout"]:
+        models = (results.get(split_name) or {}).get("models") or {}
+        for model_name, m in models.items():
+            rows.append(
+                {
+                    "split": split_name,
+                    "model": model_name,
+                    "precision": float(m.get("precision", 0.0)),
+                    "recall": float(m.get("recall", 0.0)),
+                    "f1": float(m.get("f1", 0.0)),
+                    "pr_auc": float(m.get("pr_auc", 0.0)),
+                }
+            )
+    if rows:
+        df = pd.DataFrame(rows)
+        fig, axes = plt.subplots(1, 3, figsize=(16, 4.8), sharex=True, sharey=True)
+        split_order = ["temporal_holdout", "group_holdout", "recent_24_week_temporal_holdout"]
+        title_map = {
+            "temporal_holdout": "Temporal (Primary)",
+            "group_holdout": "Group (Diagnostic)",
+            "recent_24_week_temporal_holdout": "Recent 24-Week",
+        }
+        for ax, split_name in zip(axes, split_order):
+            sub = df[df["split"] == split_name]
+            if len(sub):
+                palette = {
+                    "logistic_regression": brand["night"],
+                    "lightgbm": brand["copper"],
+                    "soft_vote_lr_lightgbm": brand["thistle"],
+                    "xgboost": brand["sky"],
+                    "catboost": brand["flint"],
+                }
+                sns.scatterplot(
+                    data=sub,
+                    x="recall",
+                    y="precision",
+                    size="pr_auc",
+                    hue="model",
+                    sizes=(80, 320),
+                    palette=palette,
+                    ax=ax,
+                )
+            ax.set_title(title_map.get(split_name, split_name))
+            ax.set_xlabel("Recall")
+            ax.set_ylabel("Precision")
+            ax.set_xlim(0, 1)
+            ax.set_ylim(0, 1)
+            ax.grid(alpha=0.2)
+        plt.tight_layout()
+        fig.savefig(paths["figures"] / EVIDENCE_SCATTER_FILE, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        # Live model-comparison heatmap (current run only)
+        piv = df.pivot(index="model", columns="split", values="f1").fillna(0.0)
+        fig, ax = plt.subplots(figsize=(8.5, 4.8))
+        sns.heatmap(piv, annot=True, fmt=".3f", cmap=brand_confusion_heatmap_cmap(), ax=ax, cbar=True)
+        ax.set_title("Live Model Comparison Heatmap (F1)")
+        ax.set_xlabel("Split")
+        ax.set_ylabel("Model")
+        plt.tight_layout()
+        fig.savefig(paths["figures"] / EVIDENCE_MODEL_HEATMAP_LIVE_FILE, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+    # 2) Error bars: 95% CI for precision/recall/F1 on temporal + recent.
+    ci = results.get("confidence_intervals") or {}
+    for split_key, out_name, title in [
+        ("temporal_primary", f"tmp_{EVIDENCE_CI_ERRORBAR_FILE}", "Temporal Primary 95% CIs"),
+        ("recent_24_week", f"rcn_{EVIDENCE_CI_ERRORBAR_FILE}", "Recent 24-Week 95% CIs"),
+    ]:
+        block = ci.get(split_key) or {}
+        if not block:
+            continue
+        metric_rows: list[dict[str, Any]] = []
+        split_models = (results.get("temporal_holdout") if split_key == "temporal_primary" else results.get("recent_24_week_temporal_holdout"))
+        split_models = (split_models or {}).get("models") or {}
+        for model_name, metrics in block.items():
+            point_src = split_models.get(model_name, {})
+            for metric in ["precision", "recall", "f1"]:
+                ci_m = metrics.get(metric, {})
+                point = float(point_src.get(metric, 0.0))
+                lo = float(ci_m.get("low", point))
+                hi = float(ci_m.get("high", point))
+                metric_rows.append(
+                    {
+                        "model": model_name,
+                        "metric": metric,
+                        "point": point,
+                        "low": lo,
+                        "high": hi,
+                    }
+                )
+        if metric_rows:
+            d = pd.DataFrame(metric_rows)
+            fig, ax = plt.subplots(figsize=(11, 5))
+            y_positions = np.arange(len(d))
+            colors = {"precision": "#4caf50", "recall": "#2196f3", "f1": "#ff9800"}
+            for i, row in d.reset_index(drop=True).iterrows():
+                ax.errorbar(
+                    x=row["point"],
+                    y=i,
+                    xerr=[[max(0.0, row["point"] - row["low"])], [max(0.0, row["high"] - row["point"])]],
+                    fmt="o",
+                    color=colors.get(row["metric"], "#9e9e9e"),
+                    ecolor=colors.get(row["metric"], "#9e9e9e"),
+                    capsize=3,
+                )
+            ax.set_yticks(y_positions)
+            ax.set_yticklabels([f"{r.model} | {r.metric}" for r in d.itertuples()])
+            ax.set_xlim(0, 1)
+            ax.set_xlabel("Metric value")
+            ax.set_title(title)
+            ax.grid(axis="x", alpha=0.25)
+            plt.tight_layout()
+            fig.savefig(paths["figures"] / out_name, dpi=150, bbox_inches="tight")
+            plt.close(fig)
+
+    # Merge temporal/recent CI panels into one stacked figure for dashboard simplicity.
+    tmp_ci = paths["figures"] / f"tmp_{EVIDENCE_CI_ERRORBAR_FILE}"
+    rcn_ci = paths["figures"] / f"rcn_{EVIDENCE_CI_ERRORBAR_FILE}"
+    if tmp_ci.exists() or rcn_ci.exists():
+        fig, axes = plt.subplots(2, 1, figsize=(12, 10))
+        for ax, pth, ttl in [
+            (axes[0], tmp_ci, "Temporal Primary 95% CIs"),
+            (axes[1], rcn_ci, "Recent 24-Week 95% CIs"),
+        ]:
+            ax.axis("off")
+            if pth.exists():
+                img = plt.imread(pth)
+                ax.imshow(img)
+                ax.set_title(ttl)
+            else:
+                ax.text(0.5, 0.5, f"{ttl}: no data", ha="center", va="center")
+        plt.tight_layout()
+        fig.savefig(paths["figures"] / EVIDENCE_CI_ERRORBAR_FILE, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+    for pth in [tmp_ci, rcn_ci]:
+        if pth.exists():
+            pth.unlink()
+
+    # 3) Bootstrap significance-style plot: F1 lift distribution vs prevalence-random on temporal.
+    y_true = dataset.target.iloc[temporal_test_index].to_numpy()
+    model_name = results.get("selected_model", {}).get("name", "logistic_regression")
+    if model_name in temporal_predictions and len(y_true):
+        y_pred_model = np.asarray(temporal_predictions[model_name]["y_pred"]).astype(int)
+        y_proba_model = np.asarray(temporal_predictions[model_name]["y_proba"]).astype(float)
+        p_random = float(results.get("temporal_holdout", {}).get("train_positives", 0)) / max(
+            1.0, float(results.get("temporal_holdout", {}).get("train_rows", 1))
+        )
+        rng = np.random.default_rng(42)
+        y_pred_rand = (rng.random(len(y_true)) < p_random).astype(int)
+        n_boot = int(os.environ.get("MODEL_BOOTSTRAP_SAMPLES", "500"))
+        lifts: list[float] = []
+        for _ in range(n_boot):
+            idx = rng.integers(0, len(y_true), size=len(y_true))
+            lifts.append(
+                float(f1_score(y_true[idx], y_pred_model[idx], zero_division=0))
+                - float(f1_score(y_true[idx], y_pred_rand[idx], zero_division=0))
+            )
+        p_value = float(np.mean(np.asarray(lifts) <= 0.0))
+        fig, ax = plt.subplots(figsize=(9, 4.8))
+        sns.histplot(lifts, bins=30, kde=True, ax=ax, color="#64b5f6")
+        sns.histplot(lifts, bins=30, kde=True, ax=ax, color=brand["sky"])
+        ax.axvline(0.0, color=brand["copper"], linestyle="--", linewidth=1.5)
+        ax.set_title(f"Bootstrap F1 Lift vs Prevalence-Random (p~{p_value:.4f})")
+        ax.set_xlabel("F1 lift (model - prevalence_random)")
+        ax.set_ylabel("Bootstrap count")
+        ax.grid(alpha=0.2)
+        plt.tight_layout()
+        fig.savefig(paths["figures"] / EVIDENCE_PVALUE_HIST_FILE, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        # 4) PR-Gain style transform (relative improvement over prevalence).
+        prevalence = float(np.mean(y_true))
+        prec, rec, _ = precision_recall_curve(y_true, y_proba_model)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            pr_gain = (prec - prevalence) / np.clip(1.0 - prevalence, 1e-12, None)
+        pr_gain = np.nan_to_num(pr_gain, nan=0.0, posinf=0.0, neginf=0.0)
+        fig, ax = plt.subplots(figsize=(8, 4.5))
+        ax.plot(rec, pr_gain, color=brand["sky"], linewidth=2)
+        ax.axhline(0.0, color=brand["copper"], linestyle="--", linewidth=1)
+        ax.set_xlim(0, 1)
+        ax.set_xlabel("Recall")
+        ax.set_ylabel("PR-Gain")
+        ax.set_title("PR-Gain Curve (Selected Model, Temporal)")
+        ax.grid(alpha=0.2)
+        plt.tight_layout()
+        fig.savefig(paths["figures"] / EVIDENCE_PR_GAIN_FILE, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        # 5) Decision curve analysis (net benefit vs threshold).
+        thresholds = np.linspace(0.05, 0.95, 19)
+        nb_model = []
+        nb_all = []
+        n = len(y_true)
+        for pt in thresholds:
+            yhat = (y_proba_model >= pt).astype(int)
+            tp = float(np.sum((yhat == 1) & (y_true == 1)))
+            fp = float(np.sum((yhat == 1) & (y_true == 0)))
+            w = pt / max(1e-12, (1.0 - pt))
+            nb_model.append((tp / n) - (fp / n) * w)
+            nb_all.append(prevalence - (1.0 - prevalence) * w)
+        fig, ax = plt.subplots(figsize=(8, 4.5))
+        ax.plot(thresholds, nb_model, label="Model", color=brand["night"], linewidth=2)
+        ax.plot(thresholds, nb_all, label="Treat All", color=brand["copper"], linewidth=1.5)
+        ax.plot(thresholds, np.zeros_like(thresholds), label="Treat None", color=brand["flint"], linewidth=1.5)
+        ax.set_xlabel("Threshold probability")
+        ax.set_ylabel("Net benefit")
+        ax.set_title("Decision Curve Analysis (Temporal)")
+        ax.legend(loc="best", fontsize=8)
+        ax.grid(alpha=0.2)
+        plt.tight_layout()
+        fig.savefig(paths["figures"] / EVIDENCE_DECISION_CURVE_FILE, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        # 6) DET curve.
+        fpr, fnr, _ = det_curve(y_true, y_proba_model)
+        fig, ax = plt.subplots(figsize=(7.5, 4.5))
+        ax.plot(fpr, fnr, color=brand["thistle"], linewidth=2)
+        ax.set_xlabel("False Positive Rate")
+        ax.set_ylabel("False Negative Rate")
+        ax.set_title("DET Curve (Temporal)")
+        ax.grid(alpha=0.2)
+        plt.tight_layout()
+        fig.savefig(paths["figures"] / EVIDENCE_DET_FILE, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        # 7) Brier decomposition-like panel (overall + by deciles).
+        bins = pd.qcut(pd.Series(y_proba_model), q=min(10, max(2, len(np.unique(y_proba_model)))), duplicates="drop")
+        calib = (
+            pd.DataFrame({"y": y_true, "p": y_proba_model, "bin": bins})
+            .groupby("bin")
+            .agg(obs=("y", "mean"), pred=("p", "mean"), n=("y", "size"))
+            .reset_index(drop=True)
+        )
+        brier = float(brier_score_loss(y_true, y_proba_model))
+        fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+        axes[0].bar(np.arange(len(calib)), calib["obs"], alpha=0.7, label="Observed")
+        axes[0].plot(np.arange(len(calib)), calib["pred"], color=brand["night"], marker="o", label="Predicted")
+        axes[0].set_title("Calibration by Probability Decile")
+        axes[0].set_xlabel("Decile index")
+        axes[0].set_ylabel("Rate")
+        axes[0].legend(fontsize=8)
+        axes[0].grid(alpha=0.2)
+        axes[1].bar(["Brier Score"], [brier], color=brand["sky"])
+        axes[1].set_ylim(0, max(0.01, brier * 1.6))
+        axes[1].set_title("Brier Score")
+        axes[1].grid(axis="y", alpha=0.2)
+        plt.tight_layout()
+        fig.savefig(paths["figures"] / EVIDENCE_BRIER_FILE, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        # 8) Calibration plot with simple binomial CI bands.
+        fig, ax = plt.subplots(figsize=(7.5, 4.5))
+        pred = calib["pred"].to_numpy()
+        obs = calib["obs"].to_numpy()
+        n_bin = calib["n"].to_numpy(dtype=float)
+        se = np.sqrt(np.clip(obs * (1.0 - obs) / np.clip(n_bin, 1.0, None), 0.0, None))
+        lo = np.clip(obs - 1.96 * se, 0, 1)
+        hi = np.clip(obs + 1.96 * se, 0, 1)
+        ax.plot([0, 1], [0, 1], linestyle="--", color=brand["flint"], linewidth=1)
+        ax.errorbar(pred, obs, yerr=[obs - lo, hi - obs], fmt="o", color=brand["sky"], ecolor=brand["night"], capsize=3)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.set_xlabel("Predicted probability")
+        ax.set_ylabel("Observed backorder rate")
+        ax.set_title("Calibration with 95% Bin CI (Temporal)")
+        ax.grid(alpha=0.2)
+        plt.tight_layout()
+        fig.savefig(paths["figures"] / EVIDENCE_CALIBRATION_FILE, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        # 9) Lift / cumulative gains.
+        order = np.argsort(-y_proba_model)
+        y_sorted = y_true[order]
+        cum_pos = np.cumsum(y_sorted)
+        x = np.arange(1, len(y_sorted) + 1) / len(y_sorted)
+        gains = cum_pos / max(1, int(np.sum(y_true)))
+        random_line = x
+        lift = np.divide(gains, x, out=np.zeros_like(gains), where=x > 0)
+        fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+        axes[0].plot(x, gains, color=brand["night"], label="Model")
+        axes[0].plot(x, random_line, color=brand["flint"], linestyle="--", label="Random")
+        axes[0].set_title("Cumulative Gains (Temporal)")
+        axes[0].set_xlabel("Population fraction")
+        axes[0].set_ylabel("Captured positives fraction")
+        axes[0].legend(fontsize=8)
+        axes[0].grid(alpha=0.2)
+        axes[1].plot(x, lift, color=brand["sky"])
+        axes[1].axhline(1.0, color=brand["copper"], linestyle="--")
+        axes[1].set_title("Lift Curve (Temporal)")
+        axes[1].set_xlabel("Population fraction")
+        axes[1].set_ylabel("Lift")
+        axes[1].grid(alpha=0.2)
+        plt.tight_layout()
+        fig.savefig(paths["figures"] / EVIDENCE_LIFT_GAINS_FILE, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        # 10) KS curve.
+        fpr_roc, tpr_roc, thr = roc_curve(y_true, y_proba_model)
+        ks = tpr_roc - fpr_roc
+        ks_idx = int(np.argmax(ks))
+        fig, ax = plt.subplots(figsize=(7.5, 4.5))
+        ax.plot(thr, tpr_roc, label="TPR", color=brand["night"])
+        ax.plot(thr, fpr_roc, label="FPR", color=brand["copper"])
+        ax.axvline(thr[ks_idx], color=brand["thistle"], linestyle="--", label=f"KS max={ks[ks_idx]:.3f}")
+        ax.set_xlabel("Threshold")
+        ax.set_ylabel("Rate")
+        ax.set_title("KS Curve (Temporal)")
+        ax.legend(fontsize=8)
+        ax.grid(alpha=0.2)
+        plt.tight_layout()
+        fig.savefig(paths["figures"] / EVIDENCE_KS_FILE, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        # 11) Permutation importance with bootstrap-like repeats.
+        try:
+            selected_name = results.get("selected_model", {}).get("name", "logistic_regression")
+            pipe = temporal_models.get(selected_name)
+            if isinstance(pipe, SoftVoteBinaryEnsemble):
+                pipe = temporal_models.get("lightgbm") or temporal_models.get("logistic_regression")
+            if pipe is not None:
+                X_eval = dataset.features.iloc[temporal_test_index]
+                y_eval = dataset.target.iloc[temporal_test_index]
+                pi = permutation_importance(
+                    pipe,
+                    X_eval,
+                    y_eval,
+                    scoring="average_precision",
+                    n_repeats=8,
+                    random_state=42,
+                    n_jobs=1,
+                )
+                importances = pd.DataFrame(
+                    {
+                        "feature": np.asarray(dataset.features.columns),
+                        "mean": pi.importances_mean,
+                        "std": pi.importances_std,
+                    }
+                ).sort_values("mean", ascending=False).head(15)
+                fig, ax = plt.subplots(figsize=(9, 5.5))
+                ax.barh(
+                    importances["feature"][::-1],
+                    importances["mean"][::-1],
+                    xerr=1.96 * importances["std"][::-1],
+                    color=brand["thistle"],
+                    alpha=0.85,
+                )
+                ax.set_title("Permutation Importance (AP) with ~95% error bars")
+                ax.set_xlabel("Mean importance")
+                ax.grid(axis="x", alpha=0.2)
+                plt.tight_layout()
+                fig.savefig(paths["figures"] / EVIDENCE_PERM_IMPORTANCE_CI_FILE, dpi=150, bbox_inches="tight")
+                plt.close(fig)
+        except Exception:
+            pass
+
+        # 12) PDP/ICE for top 3 numeric features (best-effort).
+        try:
+            selected_name = results.get("selected_model", {}).get("name", "logistic_regression")
+            pipe = temporal_models.get(selected_name)
+            if isinstance(pipe, SoftVoteBinaryEnsemble):
+                pipe = temporal_models.get("lightgbm") or temporal_models.get("logistic_regression")
+            if pipe is not None:
+                top3 = dataset.numeric_features[:3] if len(dataset.numeric_features) >= 3 else dataset.numeric_features
+                if top3:
+                    X_eval = dataset.features.iloc[temporal_test_index]
+                    fig, ax = plt.subplots(len(top3), 1, figsize=(8, 3.2 * len(top3)))
+                    if len(top3) == 1:
+                        ax = [ax]
+                    for i, feat in enumerate(top3):
+                        PartialDependenceDisplay.from_estimator(
+                            pipe,
+                            X_eval,
+                            [feat],
+                            kind="both",
+                            ax=ax[i],
+                        )
+                        ax[i].set_title(f"PDP + ICE: {feat}")
+                    plt.tight_layout()
+                    fig.savefig(paths["figures"] / EVIDENCE_PDP_ICE_FILE, dpi=150, bbox_inches="tight")
+                    plt.close(fig)
+        except Exception:
+            pass
+
+        # 13) Drift-performance overlay over monthly timeline.
+        try:
+            stability = (results.get("diagnostics") or {}).get("target_stability", {})
+            monthly = stability.get("monthly_tail", [])
+            if monthly:
+                dfm = pd.DataFrame(monthly)
+                dfm["order_month"] = pd.to_datetime(dfm["order_month"], errors="coerce")
+                dfm = dfm.dropna(subset=["order_month"]).sort_values("order_month")
+                # Approx monthly F1 from temporal selected-model predictions.
+                meta_test = dataset.meta.iloc[temporal_test_index].copy()
+                meta_test["order_month"] = pd.to_datetime(meta_test[DATE_COLUMN], errors="coerce").dt.to_period("M").dt.to_timestamp()
+                pred = np.asarray(temporal_predictions[model_name]["y_pred"]).astype(int)
+                truth = dataset.target.iloc[temporal_test_index].to_numpy()
+                perf_rows: list[dict[str, Any]] = []
+                for mth, g in meta_test.groupby("order_month"):
+                    idx = g.index.to_numpy()
+                    # map absolute indices in temporal_test_index
+                    rel = np.nonzero(np.isin(temporal_test_index, idx))[0]
+                    if len(rel) == 0:
+                        continue
+                    perf_rows.append({"order_month": mth, "f1": float(f1_score(truth[rel], pred[rel], zero_division=0))})
+                dperf = pd.DataFrame(perf_rows)
+                fig, ax1 = plt.subplots(figsize=(10, 4.8))
+                ax1.plot(dfm["order_month"], dfm["label_coverage"], color=brand["sky"], label="Label coverage")
+                ax1.plot(dfm["order_month"], dfm["positive_rate"], color=brand["thistle"], label="Positive rate")
+                ax1.set_ylabel("Coverage / Positive rate")
+                ax1.set_xlabel("Month")
+                ax1.grid(alpha=0.2)
+                ax2 = ax1.twinx()
+                if len(dperf):
+                    ax2.plot(dperf["order_month"], dperf["f1"], color=brand["copper"], label="Monthly F1 (temporal test)")
+                ax2.set_ylabel("F1")
+                lines1, labels1 = ax1.get_legend_handles_labels()
+                lines2, labels2 = ax2.get_legend_handles_labels()
+                ax1.legend(lines1 + lines2, labels1 + labels2, loc="best", fontsize=8)
+                ax1.set_title("Drift / Label Stability vs Performance Overlay")
+                plt.tight_layout()
+                fig.savefig(paths["figures"] / EVIDENCE_DRIFT_PERF_FILE, dpi=150, bbox_inches="tight")
+                plt.close(fig)
+        except Exception:
+            pass
+
+        # 14) Live temporal snapshot card chart (selected model).
+        try:
+            m = results.get("temporal_holdout", {}).get("models", {}).get(model_name, {})
+            vals = [float(m.get("precision", 0.0)), float(m.get("recall", 0.0)), float(m.get("f1", 0.0)), float(m.get("pr_auc", 0.0))]
+            labels = ["Precision", "Recall", "F1", "PR-AUC"]
+            fig, ax = plt.subplots(figsize=(8, 4.5))
+            bars = ax.bar(labels, vals, color=[brand["night"], brand["copper"], brand["thistle"], brand["sky"]])
+            ax.set_ylim(0, 1)
+            ax.set_title(f"Live Temporal Snapshot ({model_name})")
+            ax.set_ylabel("Score")
+            ax.grid(axis="y", alpha=0.2)
+            for b, v in zip(bars, vals):
+                ax.text(b.get_x() + b.get_width() / 2, v + 0.015, f"{v:.3f}", ha="center", va="bottom", fontsize=9)
+            plt.tight_layout()
+            fig.savefig(paths["figures"] / EVIDENCE_TEMPORAL_SNAPSHOT_LIVE_FILE, dpi=150, bbox_inches="tight")
+            plt.close(fig)
+        except Exception:
+            pass
 
 
 def _save_target_balance(paths: dict[str, Path]) -> None:
@@ -1414,7 +2185,7 @@ def _save_target_balance(paths: dict[str, Path]) -> None:
             backorder_counts.get(1, 0),
             int(order[TARGET_COLUMN].isna().sum()),
         ],
-        color=["#2ecc71", "#e74c3c", "#95a5a6"],
+        color=[NIGHT, COPPER, THISTLE],
     )
     axes[0].set_title("Backorder (order-time v2)")
     axes[0].set_ylabel("Count")
@@ -1426,7 +2197,7 @@ def _save_target_balance(paths: dict[str, Path]) -> None:
             axes[1].bar(
                 ["No (no overstock)", "Yes (overstock)"],
                 [overstock_counts.get(0, 0), overstock_counts.get(1, 0)],
-                color=["#2ecc71", "#e74c3c"],
+                color=[BIRCH, SKY],
             )
             axes[1].set_title("Overstock (material/plant)")
             axes[1].set_ylabel("Count")
@@ -1442,13 +2213,25 @@ def _save_target_balance(paths: dict[str, Path]) -> None:
     plt.close(fig)
 
 
-def _save_model_artifacts(dataset: PreparedDataset, paths: dict[str, Path]) -> dict[str, Pipeline]:
+def _save_model_artifacts(dataset: PreparedDataset, paths: dict[str, Path]) -> dict[str, Any]:
     full_pipelines = build_all_v2_binary_classifiers(dataset, dataset.target)
-    fitted_full_models: dict[str, Pipeline] = {}
+    fitted_full_models: dict[str, Any] = {}
+    dates = pd.to_datetime(dataset.meta.get(DATE_COLUMN), errors="coerce")
+    use_recency_weights = os.environ.get("MODEL_USE_RECENCY_WEIGHTS", "1") == "1"
+    sample_weight = None
+    if use_recency_weights and dates.notna().any():
+        half_life = float(os.environ.get("MODEL_RECENCY_HALFLIFE_DAYS", "90"))
+        sample_weight = build_recency_sample_weights(dates, half_life_days=half_life)
     for name, pipeline in full_pipelines.items():
-        pipeline.fit(dataset.features, dataset.target)
+        fit_pipeline_maybe_weighted(pipeline, dataset.features, dataset.target, sample_weight)
         joblib.dump(pipeline, paths["models"] / MODEL_FILE_MAP[name])
         fitted_full_models[name] = pipeline
+    if "logistic_regression" in fitted_full_models and "lightgbm" in fitted_full_models:
+        ensemble = SoftVoteBinaryEnsemble(
+            estimators=[fitted_full_models["logistic_regression"], fitted_full_models["lightgbm"]]
+        )
+        joblib.dump(ensemble, paths["models"] / MODEL_FILE_MAP["soft_vote_lr_lightgbm"])
+        fitted_full_models["soft_vote_lr_lightgbm"] = ensemble
     return fitted_full_models
 
 
@@ -1554,7 +2337,7 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
     group_metrics, _, _ = _evaluate_models(dataset, group_train, group_test)
 
     recent_train, recent_test, recent_split = _recent_24_week_temporal_split_indices(dataset)
-    recent_metrics, _, _ = _evaluate_models(
+    recent_metrics, _, recent_predictions = _evaluate_models(
         dataset,
         recent_train,
         recent_test,
@@ -1562,6 +2345,13 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
     )
 
     diagnostics = generate_diagnostics(dataset, paths["project_root"])
+    strict_env = os.environ.get("MODEL_LABEL_MATURITY_GATE_STRICT")
+    if strict_env is None:
+        gate_strict = bool(os.environ.get("CI"))
+    else:
+        gate_strict = strict_env == "1"
+    gate_result = _enforce_label_maturity_gate(diagnostics, strict=gate_strict)
+    diagnostics["label_maturity_gate"] = gate_result
 
     temporal_train_positives = int(dataset.target.iloc[temporal_train].sum())
     temporal_test_positives = int(dataset.target.iloc[temporal_test].sum())
@@ -1569,6 +2359,18 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
     group_test_positives = int(dataset.target.iloc[group_test].sum())
     recent_train_positives = int(dataset.target.iloc[recent_train].sum())
     recent_test_positives = int(dataset.target.iloc[recent_test].sum())
+    temporal_baselines = _build_split_baselines(
+        dataset.target.iloc[temporal_test],
+        train_positive_rate=float(dataset.target.iloc[temporal_train].mean()),
+    )
+    group_baselines = _build_split_baselines(
+        dataset.target.iloc[group_test],
+        train_positive_rate=float(dataset.target.iloc[group_train].mean()),
+    )
+    recent_baselines = _build_split_baselines(
+        dataset.target.iloc[recent_test],
+        train_positive_rate=float(dataset.target.iloc[recent_train].mean()),
+    )
 
     results: dict[str, Any] = {
         "dataset_summary": {
@@ -1583,6 +2385,8 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
             "test_positives": temporal_test_positives,
             "test_positive_rate": float(dataset.target.iloc[temporal_test].mean()),
             **temporal_split,
+            "baselines": temporal_baselines,
+            "model_vs_baseline_lift": _build_model_vs_baseline_lift(temporal_metrics, temporal_baselines),
             "models": temporal_metrics,
         },
         "group_holdout": {
@@ -1592,6 +2396,8 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
             "test_positives": group_test_positives,
             "test_positive_rate": float(dataset.target.iloc[group_test].mean()),
             "group_column": GROUP_COLUMN,
+            "baselines": group_baselines,
+            "model_vs_baseline_lift": _build_model_vs_baseline_lift(group_metrics, group_baselines),
             "models": group_metrics,
         },
         "recent_24_week_temporal_holdout": {
@@ -1601,6 +2407,8 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
             "test_positives": recent_test_positives,
             "test_positive_rate": float(dataset.target.iloc[recent_test].mean()),
             **recent_split,
+            "baselines": recent_baselines,
+            "model_vs_baseline_lift": _build_model_vs_baseline_lift(recent_metrics, recent_baselines),
             "models": recent_metrics,
         },
         "diagnostics": diagnostics,
@@ -1620,6 +2428,62 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
         "selection_basis": selection_note,
         "selection_details": selection_detail,
         "temporal_holdout_metrics": temporal_metrics[best_model_name],
+    }
+    precision_floor = float(os.environ.get("MODEL_DEPLOY_PRECISION_FLOOR", "0.30"))
+    recall_floor = float(os.environ.get("MODEL_DEPLOY_RECALL_FLOOR", "0.40"))
+    selected_temporal = temporal_metrics[best_model_name]
+    selected_recent = recent_metrics[best_model_name]
+    recent_support_pass = bool(recent_split.get("target_positive_support_passed", False))
+    base_gate_pass = bool(gate_result.get("passed", False))
+    temporal_deploy = (
+        base_gate_pass
+        and float(selected_temporal.get("precision", 0.0)) >= precision_floor
+        and float(selected_temporal.get("recall", 0.0)) >= recall_floor
+    )
+    recent_deploy = (
+        base_gate_pass
+        and recent_support_pass
+        and float(selected_recent.get("precision", 0.0)) >= precision_floor
+        and float(selected_recent.get("recall", 0.0)) >= recall_floor
+    )
+    results["deployment_readiness"] = {
+        "rule": "gate + precision_floor + recall_floor (recent operational window also required with support pass)",
+        "precision_floor": precision_floor,
+        "recall_floor": recall_floor,
+        "temporal_primary": {
+            "deployable": bool(temporal_deploy),
+            "required": True,
+            "gate_pass": base_gate_pass,
+            "precision_pass": float(selected_temporal.get("precision", 0.0)) >= precision_floor,
+            "recall_pass": float(selected_temporal.get("recall", 0.0)) >= recall_floor,
+        },
+        "recent_24_week": {
+            "deployable": bool(recent_deploy),
+            "required": True,
+            "gate_pass": base_gate_pass,
+            "support_pass": recent_support_pass,
+            "precision_pass": float(selected_recent.get("precision", 0.0)) >= precision_floor,
+            "recall_pass": float(selected_recent.get("recall", 0.0)) >= recall_floor,
+        },
+    }
+    ci_boot = int(os.environ.get("MODEL_BOOTSTRAP_SAMPLES", "500"))
+    results["confidence_intervals"] = {
+        "temporal_primary": {
+            model_name: _bootstrap_metric_cis(
+                dataset.target.iloc[temporal_test].to_numpy(),
+                pred["y_pred"],
+                n_boot=ci_boot,
+            )
+            for model_name, pred in temporal_predictions.items()
+        },
+        "recent_24_week": {
+            model_name: _bootstrap_metric_cis(
+                dataset.target.iloc[recent_test].to_numpy(),
+                pred["y_pred"],
+                n_boot=ci_boot,
+            )
+            for model_name, pred in recent_predictions.items()
+        },
     }
 
     results_path = paths["models"] / OVERFIT_RESULTS_FILE
@@ -1643,26 +2507,33 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
 
     full_models = _save_model_artifacts(dataset, paths)
     if best_model_name not in full_models:
-        # Keep deployable model artifacts strict: blended diagnostics are evaluation-only.
-        deployable = [name for name in temporal_metrics.keys() if name in full_models]
-        if not deployable:
-            raise RuntimeError("No deployable model candidates found for artifact saving.")
-        best_model_name = max(
-            deployable,
-            key=lambda name: (temporal_metrics[name].get("f1", 0.0), temporal_metrics[name].get("pr_auc", 0.0)),
-        )
-        results["selected_model"]["name"] = best_model_name
+        raise RuntimeError(f"Selected model {best_model_name!r} missing from saved artifacts.")
+    selected_model_obj = full_models[best_model_name]
+    if isinstance(selected_model_obj, SoftVoteBinaryEnsemble):
+        # Feature importance for soft-vote is not directly defined; show strongest component model.
+        base_for_importance = "lightgbm" if "lightgbm" in full_models else "logistic_regression"
+        selected_pipeline = full_models[base_for_importance]
         results["selected_model"]["selection_basis"] += (
-            " Selected deployable model excludes evaluation-only blend diagnostics."
+            f" Feature importance panel is shown from {base_for_importance} component of soft-vote ensemble."
         )
-        results["selected_model"]["temporal_holdout_metrics"] = temporal_metrics[best_model_name]
-    selected_pipeline = full_models[best_model_name]
+    else:
+        selected_pipeline = selected_model_obj
     importance_frame = _feature_importance_frame(selected_pipeline)
     importance_frame.to_csv(paths["tables"] / FEATURE_IMPORTANCE_TABLE_FILE, index=False)
     _plot_feature_importance(importance_frame, paths["figures"] / FEATURE_IMPORTANCE_FIGURE_FILE)
 
     comparison_table = _build_model_comparison_table(results)
     comparison_table.to_csv(paths["tables"] / MODEL_COMPARISON_TABLE_FILE, index=False)
+    _plot_evidence_bundle(
+        results,
+        temporal_models,
+        temporal_predictions,
+        recent_predictions,
+        dataset,
+        temporal_test,
+        recent_test,
+        paths,
+    )
 
     classification_metrics = {
         "dataset_summary": results["dataset_summary"],
@@ -1672,6 +2543,8 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
         "group_holdout": results["group_holdout"],
         "recent_24_week_temporal_holdout": results["recent_24_week_temporal_holdout"],
         "diagnostics": results["diagnostics"],
+        "deployment_readiness": results["deployment_readiness"],
+        "confidence_intervals": results["confidence_intervals"],
     }
     classification_metrics.update(_snapshot_backorder_metrics_addon(paths["project_root"]))
     (paths["models"] / CLASSIFICATION_METRICS_FILE).write_text(json.dumps(classification_metrics, indent=2))
