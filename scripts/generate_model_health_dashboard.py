@@ -69,21 +69,30 @@ def _heat_color(norm: float) -> str:
     return f"hsla({hue:.1f}, 75%, 30%, 0.55)"
 
 
-def _ci_interval_gradient(low: Any, high: Any) -> str | None:
-    """Background gradient for a [low, high] interval on a 0-1 metric (red → green)."""
+def _ci_interval_quality_norm(low: Any, high: Any) -> float | None:
+    """Single 0-1 score from a [low, high] CI on a 0-1 metric: clamp bounds, then midpoint (very bad→red, very good→green)."""
     if not (isinstance(low, (int, float)) and isinstance(high, (int, float))):
         return None
     lo = max(0.0, min(1.0, float(low)))
     hi = max(0.0, min(1.0, float(high)))
-    return f"linear-gradient(90deg, {_heat_color(lo)}, {_heat_color(hi)})"
+    if hi < lo:
+        lo, hi = hi, lo
+    return 0.5 * (lo + hi)
+
+
+def _ci_interval_solid_bg(low: Any, high: Any) -> str | None:
+    n = _ci_interval_quality_norm(low, high)
+    if n is None:
+        return None
+    return _heat_color(n)
 
 
 def _ci_interval_td(low: Any, high: Any) -> str:
     if not (isinstance(low, (int, float)) and isinstance(high, (int, float))):
         return "<td>-</td>"
-    g = _ci_interval_gradient(low, high)
+    bg = _ci_interval_solid_bg(low, high)
     text = f"{_fmt(low)} - {_fmt(high)}"
-    return f"<td class='ci-cell' style='background:{g}'>{text}</td>"
+    return f"<td class='ci-cell' style='background:{bg}'>{text}</td>"
 
 
 def _ci_kpi_chip(label: str, low: Any, high: Any) -> str:
@@ -92,8 +101,8 @@ def _ci_kpi_chip(label: str, low: Any, high: Any) -> str:
         if isinstance(low, (int, float)) and isinstance(high, (int, float))
         else "-"
     )
-    g = _ci_interval_gradient(low, high)
-    style = f" style='background:{g}'" if g else ""
+    bg = _ci_interval_solid_bg(low, high)
+    style = f" style='background:{bg}'" if bg else ""
     return f"<div class='kpi-chip'{style}><div class='kpi-label'>{label}</div><div class='kpi-value'>{text}</div></div>"
 
 
@@ -378,14 +387,14 @@ def _ci_instrument(ci_block: dict[str, Any], preferred: str | None) -> str:
         lo = max(0.0, min(1.0, low))
         hi = max(0.0, min(1.0, high))
         width = max(1.0, (hi - lo) * 100.0)
-        grad = _ci_interval_gradient(low, high) or "linear-gradient(90deg, hsla(0,75%,30%,0.55), hsla(120,75%,30%,0.55))"
+        solid = _ci_interval_solid_bg(low, high) or _heat_color(0.5)
         return (
             "<div class='ci-row'>"
             f"<span class='ci-label'>{metric_name}</span>"
             "<div class='ci-track'>"
-            f"<div class='ci-band' style='left:{lo*100:.2f}%; width:{width:.2f}%; background:{grad};'></div>"
+            f"<div class='ci-band' style='left:{lo*100:.2f}%; width:{width:.2f}%; background:{solid};'></div>"
             "</div>"
-            f"<span class='ci-val ci-val--interval' style='background:{grad}; padding:3px 8px; border-radius:6px;'>{_fmt(low)}-{_fmt(high)}</span>"
+            f"<span class='ci-val ci-val--interval' style='background:{solid}; padding:3px 8px; border-radius:6px;'>{_fmt(low)}-{_fmt(high)}</span>"
             "</div>"
         )
 
