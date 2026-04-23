@@ -1967,11 +1967,14 @@ def _feature_importance_frame(model_pipeline: Any) -> pd.DataFrame:
     return frame
 
 
-def _plot_feature_importance(importance_frame: pd.DataFrame, output_path: Path) -> None:
+def _plot_feature_importance(
+    importance_frame: pd.DataFrame, output_path: Path, *, title_suffix: str = ""
+) -> None:
     plt, sns = _get_plotting_modules()
     fig, ax = plt.subplots(figsize=(9, 6))
     sns.barplot(data=importance_frame, x="importance", y="feature", ax=ax, orient="h", color=NIGHT)
-    ax.set_title("Leakage-Safe Order-Time Feature Importance")
+    base = "Leakage-Safe Order-Time Feature Importance"
+    ax.set_title(f"{base}{title_suffix}")
     ax.set_xlabel("Importance")
     ax.set_ylabel("Feature")
     plt.tight_layout()
@@ -2894,6 +2897,18 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
     importance_frame = _feature_importance_frame(selected_pipeline)
     importance_frame.to_csv(paths["tables"] / FEATURE_IMPORTANCE_TABLE_FILE, index=False)
     _plot_feature_importance(importance_frame, paths["figures"] / FEATURE_IMPORTANCE_FIGURE_FILE)
+
+    _ensemble_types = (SoftVoteBinaryEnsemble, OOFCalibratedStackEnsemble)
+    for model_key, pipeline in full_models.items():
+        if isinstance(pipeline, _ensemble_types):
+            continue
+        per_fig = paths["figures"] / f"classification_feature_importance_{model_key}{ARTIFACT_SUFFIX}.png"
+        try:
+            frame = _feature_importance_frame(pipeline)
+            label = model_key.replace("_", " ").title()
+            _plot_feature_importance(frame, per_fig, title_suffix=f" — {label}")
+        except Exception:
+            continue
 
     comparison_table = _build_model_comparison_table(results)
     comparison_table.to_csv(paths["tables"] / MODEL_COMPARISON_TABLE_FILE, index=False)

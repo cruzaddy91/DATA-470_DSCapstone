@@ -1,6 +1,6 @@
 schema_version: 1
 template_id: westminster_brand_v1
-generated_at_utc: '2026-04-21T22:40:46.383926+00:00'
+generated_at_utc: '2026-04-23T18:00:54.092455+00:00'
 description: Canonical facts extracted from pipeline outputs. Renders use poster_template_style;
   numbers are not invented—only copied from the listed sources.
 truth_paths:
@@ -29,13 +29,15 @@ overstock_optional:
 model_comparison_heatmap:
   models_order:
   - logistic_regression
-  - lightgbm
+  - xgboost
+  - oof_calibrated_stack
   splits_order:
   - temporal_holdout
   - group_holdout
   model_labels:
     logistic_regression: Logistic
-    lightgbm: LightGBM
+    xgboost: XGBoost
+    oof_calibrated_stack: Stack (selected)
   split_labels:
     temporal_holdout: 'Temporal
 
@@ -49,18 +51,24 @@ model_comparison_heatmap:
   values:
     roc_auc:
       logistic_regression:
-        temporal_holdout: 0.8484396591739717
-        group_holdout: 0.8394496846843802
-      lightgbm:
-        temporal_holdout: 0.843645792761982
-        group_holdout: 0.957625450330186
+        temporal_holdout: 0.915452416140684
+        group_holdout: 0.9000469762820469
+      xgboost:
+        temporal_holdout: 0.8252679709967081
+        group_holdout: 0.9662641013335856
+      oof_calibrated_stack:
+        temporal_holdout: 0.9028688502723728
+        group_holdout: 0.9570682406537476
     pr_auc:
       logistic_regression:
-        temporal_holdout: 0.1855736442502459
-        group_holdout: 0.3126145974693483
-      lightgbm:
-        temporal_holdout: 0.0824082378727997
-        group_holdout: 0.6116269447914717
+        temporal_holdout: 0.3487386456961365
+        group_holdout: 0.508523480293931
+      xgboost:
+        temporal_holdout: 0.1944483769320349
+        group_holdout: 0.684861811240213
+      oof_calibrated_stack:
+        temporal_holdout: 0.1789246080268529
+        group_holdout: 0.6701660879101184
 temporal_holdout_meta:
   n_test: 6521
   n_positive: 58

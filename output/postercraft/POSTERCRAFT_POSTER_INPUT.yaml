@@ -1,5 +1,5 @@
 schema_version: 1
-generated_at_utc: '2026-04-21T22:41:01.343695+00:00'
+generated_at_utc: '2026-04-23T18:01:16.302406+00:00'
 repository_root: /Users/addycruz/Workspace/DATA-470_DSCapstone
 purpose: PosterCraft full-poster aesthetic generation fed by pipeline outputs. Verbatim
   metrics below are copied from CSV/JSON; chart images are matplotlib/seaborn exports—composite
@@ -17,29 +17,29 @@ authoritative_chart_rasters:
   relative_path: output/figures/showcase_model_comparison_heatmap.png
   postercraft_instruction: Use this file as the figure layer for this panel; do not
     regenerate plot geometry or labels.
-  sha256: e696fefd0c8a6d1749d11b78bbbca606123ec8246d0a93ee39f2c1da861d330c
-  role_on_poster: 'Center: ROC-AUC / PR-AUC grids (Logistic vs LightGBM)'
+  sha256: c6c5b925d868bec43e7324e5a03530bace56b87d71c080f5fb20771699565f29
+  role_on_poster: 'Center: ROC-AUC / PR-AUC grids (Logistic vs XGBoost vs Stack)'
   generator_script: 'scripts/build_canonical_poster_visual_spec.py → scripts/render_poster_visuals_from_canonical_spec.py
     (fallback: scripts/generate_showcase_metrics_visuals.py)'
 - id: diagram_sources_flow
   relative_path: poster/diagrams/01_data_and_features.png
   postercraft_instruction: Use this file as the figure layer for this panel; do not
     regenerate plot geometry or labels.
-  sha256: 9ff8ff70428c23da0936d3bff766ba4cc9fe6b457ea933ac42f3534f8032046d
+  sha256: 93a908e50b29dc5b816f9c63ac5164aef8ed268377c60b4dff634fab8bbcc9b6
   role_on_poster: 'Center: Mermaid sources / feature contract'
   generator_script: scripts/render_poster_diagrams.sh (mmd → png)
 - id: diagram_validation_flow
   relative_path: poster/diagrams/02_validation_and_models.png
   postercraft_instruction: Use this file as the figure layer for this panel; do not
     regenerate plot geometry or labels.
-  sha256: 8850b23e9e8252e2b4b5cbce4a7f6ff6122f480871b2d1a5639db802a99f65f6
+  sha256: 8e83a21a13bbbb750a2ccf208e22e62edc3b1217e20f508acd533a95cec1b9b4
   role_on_poster: 'Center: Mermaid validation design'
   generator_script: scripts/render_poster_diagrams.sh
 - id: confusion_matrices_temporal
   relative_path: output/figures/classification_confusion_matrices_v2_ordertime.png
   postercraft_instruction: Use this file as the figure layer for this panel; do not
     regenerate plot geometry or labels.
-  sha256: e2c138b4e69162edc55e2ba0ea09882c99c6523d01b22a66e6073765869434f6
+  sha256: 095d9f13d2c80f7f9643ba7d1d28e8ddae42887409c94b6cbdaa786f3a151ec6
   role_on_poster: 'Right column: row-normalized confusion matrices'
   generator_script: 'scripts/build_canonical_poster_visual_spec.py → scripts/render_poster_visuals_from_canonical_spec.py
     (fallback: scripts/generate_poster_figures_v2.py → src/models/poster_figures_v2.py)'
@@ -48,21 +48,28 @@ verbatim_numeric_summaries:
     source_csv: output/tables/classification_model_comparison_v2_ordertime.csv
     roc_auc:
       logistic_regression:
-        temporal_holdout: 0.8484396591739717
-        group_holdout: 0.8394496846843802
-      lightgbm:
-        temporal_holdout: 0.843645792761982
-        group_holdout: 0.957625450330186
+        temporal_holdout: 0.915452416140684
+        group_holdout: 0.9000469762820469
+      xgboost:
+        temporal_holdout: 0.8252679709967081
+        group_holdout: 0.9662641013335856
+      oof_calibrated_stack:
+        temporal_holdout: 0.9028688502723728
+        group_holdout: 0.9570682406537476
     pr_auc:
       logistic_regression:
-        temporal_holdout: 0.1855736442502459
-        group_holdout: 0.3126145974693483
-      lightgbm:
-        temporal_holdout: 0.0824082378727997
-        group_holdout: 0.6116269447914717
+        temporal_holdout: 0.3487386456961365
+        group_holdout: 0.508523480293931
+      xgboost:
+        temporal_holdout: 0.1944483769320349
+        group_holdout: 0.684861811240213
+      oof_calibrated_stack:
+        temporal_holdout: 0.1789246080268529
+        group_holdout: 0.6701660879101184
     models_shown:
     - logistic_regression
-    - lightgbm
+    - xgboost
+    - oof_calibrated_stack
     split_labels_ui:
       temporal_holdout: 'Temporal
 
@@ -72,7 +79,8 @@ verbatim_numeric_summaries:
         (diagnostic)'
     model_labels_ui:
       logistic_regression: Logistic
-      lightgbm: LightGBM
+      xgboost: XGBoost
+      oof_calibrated_stack: Stack (selected)
   temporal_holdout_scores_json:
     source_json: models/temporal_holdout_test_scores_v2_ordertime.json
     n_test: 6521
@@ -80,63 +88,86 @@ verbatim_numeric_summaries:
     baseline_positive_rate: 0.008894341358687318
     models:
       logistic_regression:
-        decision_threshold: 0.8638293688157839
-        roc_auc: 0.8484396591739717
-        pr_auc: 0.18557364425024594
+        decision_threshold: 0.30120037687925205
+        roc_auc: 0.9154524161406841
+        pr_auc: 0.34873864569613655
         confusion_matrix_labels_order:
         - actual_0_pred_0
         - actual_0_pred_1
         - actual_1_pred_0
         - actual_1_pred_1
         confusion_matrix_counts:
-        - 6435
+        - 6410
+        - 53
+        - 24
+        - 34
+        confusion_matrix_2x2:
+        - - 6410
+          - 53
+        - - 24
+          - 34
+      xgboost:
+        decision_threshold: 0.04861218109726906
+        roc_auc: 0.8252679709967081
+        pr_auc: 0.19444837693203496
+        confusion_matrix_labels_order:
+        - actual_0_pred_0
+        - actual_0_pred_1
+        - actual_1_pred_0
+        - actual_1_pred_1
+        confusion_matrix_counts:
+        - 6302
+        - 161
         - 28
-        - 53
-        - 5
+        - 30
         confusion_matrix_2x2:
-        - - 6435
-          - 28
-        - - 53
-          - 5
-      lightgbm:
-        decision_threshold: 0.875354239464305
-        roc_auc: 0.843645792761982
-        pr_auc: 0.08240823787279977
+        - - 6302
+          - 161
+        - - 28
+          - 30
+      oof_calibrated_stack:
+        decision_threshold: 0.5881232217976271
+        roc_auc: 0.9028688502723727
+        pr_auc: 0.1789246080268529
         confusion_matrix_labels_order:
         - actual_0_pred_0
         - actual_0_pred_1
         - actual_1_pred_0
         - actual_1_pred_1
         confusion_matrix_counts:
-        - 6443
-        - 20
-        - 53
-        - 5
+        - 6424
+        - 39
+        - 40
+        - 18
         confusion_matrix_2x2:
-        - - 6443
-          - 20
-        - - 53
-          - 5
+        - - 6424
+          - 39
+        - - 40
+          - 18
 paste_ready_prompt_addendum:
   constraints_for_diffusion: PosterCraft may style the full poster. Do not generate
     replacement data charts. Composite the authoritative PNG files listed under authoritative_chart_rasters
     (and optional outputs) into the layout.
   verbatim_block: "=== Verbatim metrics (copy exactly; do not invent values) ===\n\
     Temporal holdout test: n_test=6521, n_positive=58, baseline_positive_rate=0.008894341358687318.\n\
-    ROC-AUC (from classification_model_comparison table):\n  Logistic: temporal_holdout=0.8484;\
-    \ group_holdout=0.8394\n  LightGBM: temporal_holdout=0.8436; group_holdout=0.9576\n\
-    PR-AUC (from classification_model_comparison table):\n  Logistic: temporal_holdout=0.1856;\
-    \ group_holdout=0.3126\n  LightGBM: temporal_holdout=0.0824; group_holdout=0.6116\n\
-    Temporal holdout (scores JSON), per model:\n  logistic_regression: roc_auc=0.8484396591739717,\
-    \ pr_auc=0.18557364425024594, decision_threshold=0.8638293688157839\n  lightgbm:\
-    \ roc_auc=0.843645792761982, pr_auc=0.08240823787279977, decision_threshold=0.875354239464305"
+    ROC-AUC (from classification_model_comparison table):\n  Logistic: temporal_holdout=0.9155;\
+    \ group_holdout=0.9000\n  XGBoost: temporal_holdout=0.8253; group_holdout=0.9663\n\
+    \  Stack (selected): temporal_holdout=0.9029; group_holdout=0.9571\nPR-AUC (from\
+    \ classification_model_comparison table):\n  Logistic: temporal_holdout=0.3487;\
+    \ group_holdout=0.5085\n  XGBoost: temporal_holdout=0.1944; group_holdout=0.6849\n\
+    \  Stack (selected): temporal_holdout=0.1789; group_holdout=0.6702\nTemporal holdout\
+    \ (scores JSON), per model:\n  logistic_regression: roc_auc=0.9154524161406841,\
+    \ pr_auc=0.34873864569613655, decision_threshold=0.30120037687925205\n  xgboost:\
+    \ roc_auc=0.8252679709967081, pr_auc=0.19444837693203496, decision_threshold=0.04861218109726906\n\
+    \  oof_calibrated_stack: roc_auc=0.9028688502723727, pr_auc=0.1789246080268529,\
+    \ decision_threshold=0.5881232217976271"
 optional_matplotlib_outputs:
 - relative_path: output/figures/roc_curves_temporal_v2_ordertime.png
-  sha256: 996eff481e9c5cc0ce6ad992d5b91b18c2cbf5607b4a442fd7ad6096f4e6a60c
+  sha256: 7b8b95ffe2a3065abdb6c4b69dbddccc397296a5a36e8deb5a944e17c6a08dd0
   note: Optional/supporting matplotlib export if your PosterCraft layout includes
     it.
 - relative_path: output/figures/pr_curves_temporal_v2_ordertime.png
-  sha256: dea8f7d5c93bb2893b2e4b8caa8c0a9b05414d8e786f1c86846a1f70050945fb
+  sha256: ebad657a0f40cdd1001fc85bff9a3ff7e5e4814efe088b2fbfcad289a043ac34
   note: Optional/supporting matplotlib export if your PosterCraft layout includes
     it.
 - relative_path: output/figures/temporal_positive_rate_drift_v2_ordertime.png
@@ -144,11 +175,11 @@ optional_matplotlib_outputs:
   note: Optional/supporting matplotlib export if your PosterCraft layout includes
     it.
 - relative_path: output/figures/score_distribution_temporal_v2_ordertime.png
-  sha256: 513a8df39e1a178f36374fc4f2a35f3d61d2ca7b4f935030106d427919413844
+  sha256: d846d29c1c74acde93499f9e70ee745fdcfcaa5bc59ec1bc4159db1b4f7854fd
   note: Optional/supporting matplotlib export if your PosterCraft layout includes
     it.
 - relative_path: output/figures/classification_feature_importance_v2_ordertime.png
-  sha256: 506e60ac86523570fed8c20b0927812db2c7729364a0218c8d2e507a76024072
+  sha256: e0ca0d1c0dc092d1cb00c2ac944dd28c13f1b94fb166a8085bd42e26cfa9b6a7
   note: Optional/supporting matplotlib export if your PosterCraft layout includes
     it.
 supplemental_figures_not_on_main_poster:
@@ -175,19 +206,19 @@ mermaid_diagrams:
     mermaid_relative: poster/diagrams/01_data_and_features.mmd
     png_relative: poster/diagrams/01_data_and_features.png
     mmd_sha256: b93fae8f97dff5705c09726c822a634518bff2f6d7d83d76aa0a98acb51c88bd
-    png_sha256: 9ff8ff70428c23da0936d3bff766ba4cc9fe6b457ea933ac42f3534f8032046d
+    png_sha256: 93a908e50b29dc5b816f9c63ac5164aef8ed268377c60b4dff634fab8bbcc9b6
   02_validation_and_models.mmd:
     mermaid_relative: poster/diagrams/02_validation_and_models.mmd
     png_relative: poster/diagrams/02_validation_and_models.png
-    mmd_sha256: 4c949e9d54213e71e3dfb5e3996b79ccec594050415f6a146409d7397596a27c
-    png_sha256: 8850b23e9e8252e2b4b5cbce4a7f6ff6122f480871b2d1a5639db802a99f65f6
+    mmd_sha256: 4c33df939760e9107e239faa4ac15be1d2c320ca8af09f1bad8b25707c2beab7
+    png_sha256: 8e83a21a13bbbb750a2ccf208e22e62edc3b1217e20f508acd533a95cec1b9b4
   03_table_change_flow.mmd:
     mermaid_relative: poster/diagrams/03_table_change_flow.mmd
     png_relative: poster/diagrams/03_table_change_flow.png
     mmd_sha256: 55036466f87f97b623af4992aa37a3b3fb5146896a57dd9272a48c5a42e2431f
-    png_sha256: 7af308a6cee6caea44d0c502a09878501a43218222b67baaa1334be42b537792
+    png_sha256: 9ef06dcda2b8faca019d6377a9421580dd11a6c5cf55d15aff26a5daf6b34d57
 deck:
   builder: build_poster.py
   template: Showcase Templates.pptx
-  output_pptx_relative: DS_Capstone_Poster_FINAL_SCRIPT_COPY.pptx
-  pptx_sha256: 5af064ce277b9fc74d58f1a5a5dea36f47cdeff5695c2ac95a5248180f1038fe
+  output_pptx_relative: DS_Capstone_Poster_FULL_RENDER.pptx
+  pptx_sha256: d8336aaa1376a0c578923fb2845a07a20854e6fe5bbe7513e0fd8c06e1806bd5

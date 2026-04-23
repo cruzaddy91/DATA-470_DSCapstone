@@ -35,7 +35,7 @@ Poster bundle (v2 order-time) — suggested layout
       Hero: metrics across splits / models.
 
   03_roc_curves_temporal_holdout.png
-      Required: ROC on temporal holdout test (LR + LightGBM).
+      Required: ROC on temporal holdout test (LR + XGBoost + CatBoost + others when fitted).
 
   04_pr_curves_temporal_holdout.png
       Required: Precision–recall on temporal holdout (honest rare-class).

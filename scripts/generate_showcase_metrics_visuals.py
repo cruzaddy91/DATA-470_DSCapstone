@@ -57,11 +57,14 @@ MODEL_LABELS = {
     "random_forest": "Random Forest",
     "xgboost": "XGBoost",
     "lightgbm": "LightGBM",
+    "catboost": "CatBoost",
+    "soft_vote_lr_lightgbm": "Soft Vote (LR+LGBM)",
+    "oof_calibrated_stack": "Stack (selected)",
 }
 
-MODEL_ORDER = ["logistic_regression", "random_forest", "xgboost", "lightgbm"]
-# Poster hero heatmap: only models discussed in narrative & diagrams (easier to read than 4×3 grids)
-POSTER_MODEL_ORDER = ["logistic_regression", "lightgbm"]
+MODEL_ORDER = ["logistic_regression", "random_forest", "xgboost", "lightgbm", "catboost", "soft_vote_lr_lightgbm", "oof_calibrated_stack"]
+# Poster hero heatmap: LR + XGBoost + Stack (champion). CatBoost/LightGBM are base learners inside the stack; still rendered in the full comparison table.
+POSTER_MODEL_ORDER = ["logistic_regression", "xgboost", "oof_calibrated_stack"]
 SPLIT_ORDER = ["temporal_holdout", "group_holdout", "recent_24_week_temporal_holdout"]
 # Poster heatmap: only the two stable splits (recent 24-wk has ~14 positives — F1/PR look “broken”)
 POSTER_SPLIT_ORDER = ["temporal_holdout", "group_holdout"]
@@ -126,7 +129,7 @@ def save_model_comparison_heatmap() -> Path:
     fig, axes = plt.subplots(1, 2, figsize=(fig_w_in, fig_h_in), facecolor="white")
     fig.subplots_adjust(left=0.07, right=0.99, top=0.86, bottom=0.20, wspace=0.30)
     fig.suptitle(
-        "Logistic vs. LightGBM — ranking metrics under stress splits (not F1 at a fixed threshold)",
+        "Logistic vs. XGBoost vs. CatBoost — ranking metrics under stress splits (not F1 at a fixed threshold)",
         fontsize=15,
         fontweight="bold",
         y=0.98,
@@ -214,10 +217,10 @@ def save_model_comparison_heatmap() -> Path:
         0.5,
         0.015,
         (
-            "Compare the same two estimators on temporal (strict) vs. grouped (easier) holdouts. "
-            "Temporal ≈ train on past periods, test on later orders (~0.9% positives). "
-            "Grouped = by sales document. Recent 24-week omitted (~14 positives — unstable). "
-            "If logistic matches or leads on temporal PR-AUC, boosting has not earned complexity here. "
+            "Compare LR, XGBoost, and CatBoost on temporal (strict) vs. grouped (easier) holdouts. "
+            "Temporal ≈ train on past periods, test on later orders (rare positives). "
+            "Grouped = by sales document. Recent 24-week omitted (small n — unstable). "
+            "Champion is chosen on inner temporal validation; this grid is honest reporting on held splits. "
             "Night (brand) outline = best in column."
         ),
         ha="center",

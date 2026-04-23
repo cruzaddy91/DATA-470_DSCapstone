@@ -10,8 +10,10 @@ This repository now treats `v2` as the only official modeling path.
 - Official target: `target_backorder_risk`
 - Official task: binary classification
   `backorder` vs `no backorder`
-- Official model comparison:
-  `logistic_regression` vs `lightgbm`
+- Official model comparison (poster headlines):
+  `logistic_regression` vs `xgboost` vs `oof_calibrated_stack` (selected champion, inner-temporal rule)
+- `lightgbm` and `catboost` are base learners inside the OOF-calibrated stack; reported in the full comparison table but not poster headlines.
+- Deployment status is reported honestly (precision + recall floors); see `docs/md/v2_model_truth.md` for the current champion and gate result.
 
 Older snapshot-style experiments and `v1.1` are not part of the current project story.
 

@@ -35,7 +35,8 @@ from westminster_poster_palette import (
 
 # Westminster brand mapping
 COLOR_LR = NIGHT
-COLOR_LGB = COPPER
+COLOR_XGB = COPPER
+COLOR_STACK = THISTLE
 COLOR_BASELINE = FLINT
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -82,7 +83,8 @@ def generate_temporal_holdout_poster_figures(project_root: str | Path | None = N
     ax.plot([0, 1], [0, 1], linestyle="--", color=COLOR_BASELINE, linewidth=1.5, label="Random classifier")
     for name, color, label_short in (
         ("logistic_regression", COLOR_LR, "Logistic"),
-        ("lightgbm", COLOR_LGB, "LightGBM"),
+        ("xgboost", COLOR_XGB, "XGBoost"),
+        ("oof_calibrated_stack", COLOR_STACK, "Stack"),
     ):
         if name not in models:
             continue
@@ -114,7 +116,8 @@ def generate_temporal_holdout_poster_figures(project_root: str | Path | None = N
     )
     for name, color, label_short in (
         ("logistic_regression", COLOR_LR, "Logistic"),
-        ("lightgbm", COLOR_LGB, "LightGBM"),
+        ("xgboost", COLOR_XGB, "XGBoost"),
+        ("oof_calibrated_stack", COLOR_STACK, "Stack"),
     ):
         if name not in models:
             continue
@@ -158,9 +161,9 @@ def generate_temporal_holdout_poster_figures(project_root: str | Path | None = N
             plt.close(fig)
             out["drift"] = str(drift_path)
 
-    # --- Score distributions (one figure, two rows: LR / LGB) ---
+    # --- Score distributions (one figure, rows: LR / XGBoost / Stack) ---
     model_items: list[tuple[str, str]] = []
-    for label_short, key in (("Logistic", "logistic_regression"), ("LightGBM", "lightgbm")):
+    for label_short, key in (("Logistic", "logistic_regression"), ("XGBoost", "xgboost"), ("Stack", "oof_calibrated_stack")):
         if key in models:
             model_items.append((key, label_short))
     if model_items:
@@ -186,7 +189,8 @@ def generate_temporal_holdout_poster_figures(project_root: str | Path | None = N
     sns.set_theme(style="white", font=POSTER_FONT)
     cm_specs = [
         ("logistic_regression", "Logistic regression"),
-        ("lightgbm", "LightGBM"),
+        ("xgboost", "XGBoost"),
+        ("oof_calibrated_stack", "Stack (selected)"),
     ]
     present = [(k, lab) for k, lab in cm_specs if k in models]
     if present:

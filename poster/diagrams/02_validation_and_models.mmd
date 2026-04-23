@@ -1,32 +1,37 @@
 %% Capstone poster — panel 2 (Westminster brand)
+%% Honest selection-process flow: Train → Inner temporal val (SELECT) → Deploy gate (reported honestly) → Outer holdout (REPORT ONCE)
 %%{init: {'theme': 'base', 'flowchart': {'htmlLabels': true}}}%%
 
 flowchart TB
-  subgraph V["Validation design"]
-    T[Temporal holdout<br/>train older → test later]
-    G[Grouped holdout<br/>diagnostic]
+  DATA["Training data<br/>order–time features<br/>31k+ rows · 3.4% pos."]
+
+  subgraph INNER["Inner temporal validation · SELECT HERE"]
+    direction TB
+    LR["Logistic Regression<br/><i>linear baseline</i>"]
+    XGB["XGBoost<br/><i>tree benchmark</i>"]
+    STACK["Stack · OOF–calibrated<br/><i>base learners: LR · LightGBM · XGBoost · CatBoost</i>"]
+    RANK{{"Rank by PR–AUC<br/>+ calibration tie–breaks"}}
+    LR --> RANK
+    XGB --> RANK
+    STACK --> RANK
   end
 
-  subgraph M["Models"]
-    LR[Logistic regression]
-    LGB[LightGBM]
-  end
+  GATE{{"Deploy gate<br/>precision floor 0.15<br/>recall floor 0.35"}}
+  HOLDOUT["Outer temporal holdout · REPORT ONCE<br/>PR–AUC · ROC–AUC · F1 · P · R"]
 
-  subgraph O["Outputs"]
-    MET[PR-AUC · ROC-AUC<br/>F1 · precision · recall]
-  end
+  DATA --> INNER
+  RANK -->|"selected: Stack"| GATE
+  GATE -->|"precision ✓ · recall ✗ — NO–GO, reported honestly"| HOLDOUT
 
-  T --> LR
-  T --> LGB
-  G --> LR
-  G --> LGB
-  LR --> MET
-  LGB --> MET
+  %% Westminster brand: Night #211551, Copper #9D581F, Thistle #8252C7, Sky #00B5E2, Birch #F1F1DE, Flint #101820, Snow #FFFFFF
+  classDef src fill:#F1F1DE,stroke:#211551,color:#101820,stroke-width:2px
+  classDef cand fill:#FFFFFF,stroke:#8252C7,color:#101820
+  classDef winner fill:#9D581F,stroke:#101820,color:#FFFFFF,stroke-width:3px
+  classDef decision fill:#E0F7FC,stroke:#00B5E2,color:#101820
+  classDef report fill:#F1F1DE,stroke:#00B5E2,color:#101820,stroke-width:2px
 
-  classDef pipeline fill:#F1F1DE,stroke:#211551,color:#101820
-  classDef process fill:#FFFFFF,stroke:#8252C7,color:#101820
-  classDef reporting fill:#E0F7FC,stroke:#00B5E2,color:#101820
-
-  class T,G pipeline
-  class LR,LGB process
-  class MET reporting
+  class DATA src
+  class LR,XGB cand
+  class STACK winner
+  class RANK,GATE decision
+  class HOLDOUT report
