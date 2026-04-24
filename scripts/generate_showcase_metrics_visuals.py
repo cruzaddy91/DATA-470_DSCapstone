@@ -60,10 +60,16 @@ MODEL_LABELS = {
     "lightgbm": "LightGBM",
     "catboost": "CatBoost",
     "soft_vote_lr_lightgbm": "Soft Vote (LR+LGBM)",
+    "soft_vote_4_bases": "Vote (4 bases)",
     "oof_calibrated_stack": "Stack (selected)",
+    "oof_calibrated_stack_all_bases": "Stack (all bases)",
 }
 
-MODEL_ORDER = ["logistic_regression", "lightgbm", "random_forest", "knn", "xgboost", "catboost", "soft_vote_lr_lightgbm", "oof_calibrated_stack"]
+MODEL_ORDER = [
+    "logistic_regression", "lightgbm", "random_forest", "knn", "xgboost", "catboost",
+    "soft_vote_lr_lightgbm", "soft_vote_4_bases",
+    "oof_calibrated_stack", "oof_calibrated_stack_all_bases",
+]
 # Poster hero heatmap: LR + XGBoost + Stack (champion). CatBoost/LightGBM are base learners inside the stack; still rendered in the full comparison table.
 POSTER_MODEL_ORDER = ["logistic_regression", "xgboost", "oof_calibrated_stack"]
 SPLIT_ORDER = ["temporal_holdout", "group_holdout", "recent_24_week_temporal_holdout"]

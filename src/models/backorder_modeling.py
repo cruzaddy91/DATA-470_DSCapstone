@@ -107,7 +107,9 @@ MODEL_FILE_MAP = {
     "random_forest": f"backorder_random_forest{ARTIFACT_SUFFIX}.joblib",
     "knn": f"backorder_knn{ARTIFACT_SUFFIX}.joblib",
     "soft_vote_lr_lightgbm": f"backorder_soft_vote_lr_lightgbm{ARTIFACT_SUFFIX}.joblib",
+    "soft_vote_4_bases": f"backorder_soft_vote_4_bases{ARTIFACT_SUFFIX}.joblib",
     "oof_calibrated_stack": f"backorder_oof_calibrated_stack{ARTIFACT_SUFFIX}.joblib",
+    "oof_calibrated_stack_all_bases": f"backorder_oof_calibrated_stack_all_bases{ARTIFACT_SUFFIX}.joblib",
 }
 
 CLASSIFICATION_METRICS_FILE = f"classification_metrics{ARTIFACT_SUFFIX}.json"
@@ -1226,6 +1228,98 @@ def _evaluate_models(
                 estimators=fitted_estimators,
                 meta_model=meta_model,
             )
+
+            # --- Additional parent models for comparison (not the default champion path) ---
+            #
+            # soft_vote_4_bases: equal-weight average of the same 4 base probabilities the main
+            # stack learns weights over. If this beats oof_calibrated_stack on outer temporal,
+            # the meta-LR is overfitting its weights — a classic stacking cautionary tale.
+            p_bases_stacked = np.column_stack(
+                [pipe.predict_proba(X_test)[:, 1] for _, pipe in fitted_estimators]
+            )
+            p_vote = p_bases_stacked.mean(axis=1)
+            # Threshold via same train-only OOF pattern used by the main stack (equal weights
+            # on the OOF columns the main stack selected).
+            p_vote_oof = oof[oof_mask].mean(axis=1)
+            vote_threshold, vote_objective = select_threshold_with_precision_floor(
+                y_train_masked,
+                p_vote_oof,
+                precision_floor=precision_floor,
+                min_predicted_positives=guard,
+            )
+            y_pred_vote = (p_vote >= vote_threshold).astype(int)
+            vote_metrics = compute_classification_metrics(y_test, y_pred_vote, p_vote)
+            vote_metrics["decision_threshold"] = float(vote_threshold)
+            vote_metrics["threshold_calibration_strategy"] = f"soft_vote_4_bases__train_oof__{vote_objective}"
+            vote_metrics["stack_base_models"] = ",".join([n for n, _ in fitted_estimators])
+            metrics_by_model["soft_vote_4_bases"] = vote_metrics
+            predictions["soft_vote_4_bases"] = {"y_pred": y_pred_vote, "y_proba": p_vote}
+            fitted_models["soft_vote_4_bases"] = SoftVoteBinaryEnsemble(
+                estimators=[pipe for _, pipe in fitted_estimators]
+            )
+
+            # oof_calibrated_stack_all_bases: same meta-LR design, but over every available
+            # base learner (adds XGBoost + CatBoost when MODEL_ENABLE_EXTRA_MODELS=1). Tests
+            # whether the "diversity principle" (drop correlated GBDTs) actually matters on
+            # this data. If this all-bases stack wins on outer PR-AUC, the kitchen-sink
+            # approach was fine and the diversity fix cost us lift.
+            all_bases_raw = [
+                name for name in ["logistic_regression", "lightgbm", "xgboost", "catboost", "random_forest", "knn"]
+                if name in metrics_by_model and name in base_templates
+            ]
+            if len(all_bases_raw) > len(stack_candidates):
+                oof_all, oof_mask_all, n_splits_all = _stack_oof_probability_matrix(
+                    dataset, train_index, all_bases_raw, base_templates
+                )
+                if n_splits_all >= 2 and oof_mask_all.any():
+                    all_candidates, _, all_prune_meta = _prune_stack_base_names(all_bases_raw, oof_all, y_train_arr)
+                    col_ix_all = [all_bases_raw.index(n) for n in all_candidates]
+                    oof_a = oof_all[:, col_ix_all]
+
+                    meta_all = SkPipeline(steps=[
+                        ("scale", StandardScaler()),
+                        ("model", LogisticRegression(max_iter=2000, class_weight="balanced", random_state=42)),
+                    ])
+                    meta_all.fit(oof_a[oof_mask_all], y_train_arr[oof_mask_all])
+
+                    # Fit any bases not already fitted in the primary stack (reuse where possible).
+                    already_fitted = {n: p for n, p in fitted_estimators}
+                    z_all_cols = []
+                    all_estimators: list[tuple[str, Any]] = []
+                    for model_name in all_candidates:
+                        if model_name in already_fitted:
+                            pipe_full = already_fitted[model_name]
+                        else:
+                            pipe_full = clone(base_templates[model_name])
+                            fit_pipeline_maybe_weighted(pipe_full, X_train, y_train_arr, full_weight)
+                        all_estimators.append((model_name, pipe_full))
+                        z_all_cols.append(pipe_full.predict_proba(X_test)[:, 1])
+                    z_all = np.column_stack(z_all_cols)
+                    p_all = meta_all.predict_proba(z_all)[:, 1]
+
+                    p_all_oof = meta_all.predict_proba(oof_a[oof_mask_all])[:, 1]
+                    y_masked_all = y_train_arr[oof_mask_all]
+                    guard_all = max(1, int(np.ceil((y_masked_all == 1).sum() * 0.5)))
+                    thr_all, obj_all = select_threshold_with_precision_floor(
+                        y_masked_all,
+                        p_all_oof,
+                        precision_floor=precision_floor,
+                        min_predicted_positives=guard_all,
+                    )
+                    y_pred_all = (p_all >= thr_all).astype(int)
+                    all_metrics = compute_classification_metrics(y_test, y_pred_all, p_all)
+                    all_metrics["decision_threshold"] = float(thr_all)
+                    all_metrics["threshold_calibration_strategy"] = f"oof_calibrated_stack_all_bases__train_oof__{obj_all}"
+                    all_metrics["threshold_calibration_oof_folds"] = float(n_splits_all)
+                    all_metrics["stack_base_models_pre_prune"] = ",".join(all_bases_raw)
+                    all_metrics["stack_base_models"] = ",".join(all_candidates)
+                    all_metrics.update(all_prune_meta)
+                    metrics_by_model["oof_calibrated_stack_all_bases"] = all_metrics
+                    predictions["oof_calibrated_stack_all_bases"] = {"y_pred": y_pred_all, "y_proba": p_all}
+                    fitted_models["oof_calibrated_stack_all_bases"] = OOFCalibratedStackEnsemble(
+                        estimators=all_estimators,
+                        meta_model=meta_all,
+                    )
 
     return metrics_by_model, fitted_models, predictions
 
