@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at_utc": "2026-04-23T18:01:16.302406+00:00",
+  "generated_at_utc": "2026-04-24T10:38:02.285751+00:00",
   "repository_root": "/Users/addycruz/Workspace/DATA-470_DSCapstone",
   "purpose": "PosterCraft full-poster aesthetic generation fed by pipeline outputs. Verbatim metrics below are copied from CSV/JSON; chart images are matplotlib/seaborn exports\u2014composite those rasters, do not redraw plots or numbers in diffusion.",
   "authoritative_chart_rasters": [
@@ -16,7 +16,7 @@
       "id": "showcase_model_comparison_heatmap",
       "relative_path": "output/figures/showcase_model_comparison_heatmap.png",
       "postercraft_instruction": "Use this file as the figure layer for this panel; do not regenerate plot geometry or labels.",
-      "sha256": "c6c5b925d868bec43e7324e5a03530bace56b87d71c080f5fb20771699565f29",
+      "sha256": "796402ca90ec32dff7de9e352f848f9375f35c21ecc0c99b3562e48c4a661e47",
       "role_on_poster": "Center: ROC-AUC / PR-AUC grids (Logistic vs XGBoost vs Stack)",
       "generator_script": "scripts/build_canonical_poster_visual_spec.py \u2192 scripts/render_poster_visuals_from_canonical_spec.py (fallback: scripts/generate_showcase_metrics_visuals.py)"
     },
@@ -32,7 +32,7 @@
       "id": "diagram_validation_flow",
       "relative_path": "poster/diagrams/02_validation_and_models.png",
       "postercraft_instruction": "Use this file as the figure layer for this panel; do not regenerate plot geometry or labels.",
-      "sha256": "8e83a21a13bbbb750a2ccf208e22e62edc3b1217e20f508acd533a95cec1b9b4",
+      "sha256": "7257dd8eb1987b824932dd5c74da2ddcaf02c7d599c9f8f08a9ff7bebb89cff2",
       "role_on_poster": "Center: Mermaid validation design",
       "generator_script": "scripts/render_poster_diagrams.sh"
     },
@@ -40,7 +40,7 @@
       "id": "confusion_matrices_temporal",
       "relative_path": "output/figures/classification_confusion_matrices_v2_ordertime.png",
       "postercraft_instruction": "Use this file as the figure layer for this panel; do not regenerate plot geometry or labels.",
-      "sha256": "095d9f13d2c80f7f9643ba7d1d28e8ddae42887409c94b6cbdaa786f3a151ec6",
+      "sha256": "b5919f327a949c452236c7d0ec23c01628092a5d17499cc3b12ef2782305cd9c",
       "role_on_poster": "Right column: row-normalized confusion matrices",
       "generator_script": "scripts/build_canonical_poster_visual_spec.py \u2192 scripts/render_poster_visuals_from_canonical_spec.py (fallback: scripts/generate_poster_figures_v2.py \u2192 src/models/poster_figures_v2.py)"
     }
@@ -50,30 +50,30 @@
       "source_csv": "output/tables/classification_model_comparison_v2_ordertime.csv",
       "roc_auc": {
         "logistic_regression": {
-          "temporal_holdout": 0.915452416140684,
-          "group_holdout": 0.9000469762820469
+          "temporal_holdout": 0.9096101415484428,
+          "group_holdout": 0.8957227926216821
         },
         "xgboost": {
           "temporal_holdout": 0.8252679709967081,
           "group_holdout": 0.9662641013335856
         },
         "oof_calibrated_stack": {
-          "temporal_holdout": 0.9028688502723728,
-          "group_holdout": 0.9570682406537476
+          "temporal_holdout": 0.9364552599145268,
+          "group_holdout": 0.9536497867479572
         }
       },
       "pr_auc": {
         "logistic_regression": {
-          "temporal_holdout": 0.3487386456961365,
-          "group_holdout": 0.508523480293931
+          "temporal_holdout": 0.3582430891849534,
+          "group_holdout": 0.5196345419782892
         },
         "xgboost": {
           "temporal_holdout": 0.1944483769320349,
           "group_holdout": 0.684861811240213
         },
         "oof_calibrated_stack": {
-          "temporal_holdout": 0.1789246080268529,
-          "group_holdout": 0.6701660879101184
+          "temporal_holdout": 0.3263572719789708,
+          "group_holdout": 0.6439846543080588
         }
       },
       "models_shown": [
@@ -98,9 +98,9 @@
       "baseline_positive_rate": 0.008894341358687318,
       "models": {
         "logistic_regression": {
-          "decision_threshold": 0.30120037687925205,
-          "roc_auc": 0.9154524161406841,
-          "pr_auc": 0.34873864569613655,
+          "decision_threshold": 0.3641332324077192,
+          "roc_auc": 0.9096101415484429,
+          "pr_auc": 0.3582430891849534,
           "confusion_matrix_labels_order": [
             "actual_0_pred_0",
             "actual_0_pred_1",
@@ -108,15 +108,15 @@
             "actual_1_pred_1"
           ],
           "confusion_matrix_counts": [
-            6410,
-            53,
+            6422,
+            41,
             24,
             34
           ],
           "confusion_matrix_2x2": [
             [
-              6410,
-              53
+              6422,
+              41
             ],
             [
               24,
@@ -152,9 +152,9 @@
           ]
         },
         "oof_calibrated_stack": {
-          "decision_threshold": 0.5881232217976271,
-          "roc_auc": 0.9028688502723727,
-          "pr_auc": 0.1789246080268529,
+          "decision_threshold": 0.6602987399314691,
+          "roc_auc": 0.9364552599145268,
+          "pr_auc": 0.32635727197897085,
           "confusion_matrix_labels_order": [
             "actual_0_pred_0",
             "actual_0_pred_1",
@@ -162,19 +162,19 @@
             "actual_1_pred_1"
           ],
           "confusion_matrix_counts": [
-            6424,
-            39,
-            40,
-            18
+            6427,
+            36,
+            33,
+            25
           ],
           "confusion_matrix_2x2": [
             [
-              6424,
-              39
+              6427,
+              36
             ],
             [
-              40,
-              18
+              33,
+              25
             ]
           ]
         }
@@ -183,17 +183,17 @@
   },
   "paste_ready_prompt_addendum": {
     "constraints_for_diffusion": "PosterCraft may style the full poster. Do not generate replacement data charts. Composite the authoritative PNG files listed under authoritative_chart_rasters (and optional outputs) into the layout.",
-    "verbatim_block": "=== Verbatim metrics (copy exactly; do not invent values) ===\nTemporal holdout test: n_test=6521, n_positive=58, baseline_positive_rate=0.008894341358687318.\nROC-AUC (from classification_model_comparison table):\n  Logistic: temporal_holdout=0.9155; group_holdout=0.9000\n  XGBoost: temporal_holdout=0.8253; group_holdout=0.9663\n  Stack (selected): temporal_holdout=0.9029; group_holdout=0.9571\nPR-AUC (from classification_model_comparison table):\n  Logistic: temporal_holdout=0.3487; group_holdout=0.5085\n  XGBoost: temporal_holdout=0.1944; group_holdout=0.6849\n  Stack (selected): temporal_holdout=0.1789; group_holdout=0.6702\nTemporal holdout (scores JSON), per model:\n  logistic_regression: roc_auc=0.9154524161406841, pr_auc=0.34873864569613655, decision_threshold=0.30120037687925205\n  xgboost: roc_auc=0.8252679709967081, pr_auc=0.19444837693203496, decision_threshold=0.04861218109726906\n  oof_calibrated_stack: roc_auc=0.9028688502723727, pr_auc=0.1789246080268529, decision_threshold=0.5881232217976271"
+    "verbatim_block": "=== Verbatim metrics (copy exactly; do not invent values) ===\nTemporal holdout test: n_test=6521, n_positive=58, baseline_positive_rate=0.008894341358687318.\nROC-AUC (from classification_model_comparison table):\n  Logistic: temporal_holdout=0.9096; group_holdout=0.8957\n  XGBoost: temporal_holdout=0.8253; group_holdout=0.9663\n  Stack (selected): temporal_holdout=0.9365; group_holdout=0.9536\nPR-AUC (from classification_model_comparison table):\n  Logistic: temporal_holdout=0.3582; group_holdout=0.5196\n  XGBoost: temporal_holdout=0.1944; group_holdout=0.6849\n  Stack (selected): temporal_holdout=0.3264; group_holdout=0.6440\nTemporal holdout (scores JSON), per model:\n  logistic_regression: roc_auc=0.9096101415484429, pr_auc=0.3582430891849534, decision_threshold=0.3641332324077192\n  xgboost: roc_auc=0.8252679709967081, pr_auc=0.19444837693203496, decision_threshold=0.04861218109726906\n  oof_calibrated_stack: roc_auc=0.9364552599145268, pr_auc=0.32635727197897085, decision_threshold=0.6602987399314691"
   },
   "optional_matplotlib_outputs": [
     {
       "relative_path": "output/figures/roc_curves_temporal_v2_ordertime.png",
-      "sha256": "7b8b95ffe2a3065abdb6c4b69dbddccc397296a5a36e8deb5a944e17c6a08dd0",
+      "sha256": "1c09e00292e596f1a7908dd46f778baa305d404c5dca9e3ee00c21b68b116e70",
       "note": "Optional/supporting matplotlib export if your PosterCraft layout includes it."
     },
     {
       "relative_path": "output/figures/pr_curves_temporal_v2_ordertime.png",
-      "sha256": "ebad657a0f40cdd1001fc85bff9a3ff7e5e4814efe088b2fbfcad289a043ac34",
+      "sha256": "86938ba29a552b57da4f302d0675caf477afdedb87ab66bd536129b20eba3cd5",
       "note": "Optional/supporting matplotlib export if your PosterCraft layout includes it."
     },
     {
@@ -203,12 +203,12 @@
     },
     {
       "relative_path": "output/figures/score_distribution_temporal_v2_ordertime.png",
-      "sha256": "d846d29c1c74acde93499f9e70ee745fdcfcaa5bc59ec1bc4159db1b4f7854fd",
+      "sha256": "a558b93a34fd0778ed40f44b01e650714268bf9d5acd771ac4d1af948d5d025a",
       "note": "Optional/supporting matplotlib export if your PosterCraft layout includes it."
     },
     {
       "relative_path": "output/figures/classification_feature_importance_v2_ordertime.png",
-      "sha256": "e0ca0d1c0dc092d1cb00c2ac944dd28c13f1b94fb166a8085bd42e26cfa9b6a7",
+      "sha256": "3f56c84f7b2bf91f6a5d9fec8371bad1b7b4874232987b4e044546b8561e587a",
       "note": "Optional/supporting matplotlib export if your PosterCraft layout includes it."
     }
   ],
@@ -235,8 +235,8 @@
     "02_validation_and_models.mmd": {
       "mermaid_relative": "poster/diagrams/02_validation_and_models.mmd",
       "png_relative": "poster/diagrams/02_validation_and_models.png",
-      "mmd_sha256": "4c33df939760e9107e239faa4ac15be1d2c320ca8af09f1bad8b25707c2beab7",
-      "png_sha256": "8e83a21a13bbbb750a2ccf208e22e62edc3b1217e20f508acd533a95cec1b9b4"
+      "mmd_sha256": "75368e6fc0c22b5ed4cc587bd01e373e0d17b05e27ebb148877a39dca1960415",
+      "png_sha256": "7257dd8eb1987b824932dd5c74da2ddcaf02c7d599c9f8f08a9ff7bebb89cff2"
     },
     "03_table_change_flow.mmd": {
       "mermaid_relative": "poster/diagrams/03_table_change_flow.mmd",
@@ -249,6 +249,6 @@
     "builder": "build_poster.py",
     "template": "Showcase Templates.pptx",
     "output_pptx_relative": "DS_Capstone_Poster_FULL_RENDER.pptx",
-    "pptx_sha256": "d8336aaa1376a0c578923fb2845a07a20854e6fe5bbe7513e0fd8c06e1806bd5"
+    "pptx_sha256": "b3bb5a9730e20adba2d20cc11789fee4647621bc6d03092ffa56c3fb903abb62"
   }
 }

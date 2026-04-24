@@ -1,6 +1,6 @@
 schema_version: 1
 template_id: westminster_brand_v1
-generated_at_utc: '2026-04-23T18:00:54.092455+00:00'
+generated_at_utc: '2026-04-24T10:37:39.299654+00:00'
 description: Canonical facts extracted from pipeline outputs. Renders use poster_template_style;
   numbers are not invented—only copied from the listed sources.
 truth_paths:
@@ -51,24 +51,24 @@ model_comparison_heatmap:
   values:
     roc_auc:
       logistic_regression:
-        temporal_holdout: 0.915452416140684
-        group_holdout: 0.9000469762820469
+        temporal_holdout: 0.9096101415484428
+        group_holdout: 0.8957227926216821
       xgboost:
         temporal_holdout: 0.8252679709967081
         group_holdout: 0.9662641013335856
       oof_calibrated_stack:
-        temporal_holdout: 0.9028688502723728
-        group_holdout: 0.9570682406537476
+        temporal_holdout: 0.9364552599145268
+        group_holdout: 0.9536497867479572
     pr_auc:
       logistic_regression:
-        temporal_holdout: 0.3487386456961365
-        group_holdout: 0.508523480293931
+        temporal_holdout: 0.3582430891849534
+        group_holdout: 0.5196345419782892
       xgboost:
         temporal_holdout: 0.1944483769320349
         group_holdout: 0.684861811240213
       oof_calibrated_stack:
-        temporal_holdout: 0.1789246080268529
-        group_holdout: 0.6701660879101184
+        temporal_holdout: 0.3263572719789708
+        group_holdout: 0.6439846543080588
 temporal_holdout_meta:
   n_test: 6521
   n_positive: 58

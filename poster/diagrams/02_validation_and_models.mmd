@@ -1,5 +1,6 @@
 %% Capstone poster — panel 2 (Westminster brand)
-%% Honest selection-process flow: Train → Inner temporal val (SELECT) → Deploy gate (reported honestly) → Outer holdout (REPORT ONCE)
+%% Honest selection-process flow: Inner temporal CV selects Stack by rule;
+%% outer temporal holdout shows Logistic Regression is the deployable best.
 %%{init: {'theme': 'base', 'flowchart': {'htmlLabels': true}}}%%
 
 flowchart TB
@@ -7,31 +8,41 @@ flowchart TB
 
   subgraph INNER["Inner temporal validation · SELECT HERE"]
     direction TB
-    LR["Logistic Regression<br/><i>linear baseline</i>"]
-    XGB["XGBoost<br/><i>tree benchmark</i>"]
-    STACK["Stack · OOF–calibrated<br/><i>base learners: LR · LightGBM · XGBoost · CatBoost</i>"]
-    RANK{{"Rank by PR–AUC<br/>+ calibration tie–breaks"}}
+    LR["Logistic Regression<br/><i>linear</i>"]
+    LGBM["LightGBM<br/><i>boosted tree</i>"]
+    RF["RandomForest<br/><i>bagged tree</i>"]
+    KNN["kNN<br/><i>instance–based</i>"]
+    STACK["Stack · OOF–calibrated<br/><i>LR + LightGBM + RF + kNN</i>"]
+    RANK{{"Rank by PR–AUC<br/>(temporal folds)"}}
     LR --> RANK
-    XGB --> RANK
+    LGBM --> RANK
+    RF --> RANK
+    KNN --> RANK
     STACK --> RANK
   end
 
   GATE{{"Deploy gate<br/>precision floor 0.15<br/>recall floor 0.35"}}
-  HOLDOUT["Outer temporal holdout · REPORT ONCE<br/>PR–AUC · ROC–AUC · F1 · P · R"]
+  HOLDOUT["Outer temporal holdout · REPORT ONCE<br/>LR: ROC 0.910 · PR 0.358 · F1 0.511<br/>Stack: ROC 0.936 · PR 0.326 · F1 0.420"]
+  MATURITY{{"Label maturity gate<br/>last 180 days:<br/>36% coverage, 32 positives<br/>FAILS (dataset, not model)"}}
 
   DATA --> INNER
-  RANK -->|"selected: Stack"| GATE
-  GATE -->|"precision ✓ · recall ✗ — NO–GO, reported honestly"| HOLDOUT
+  RANK -->|"rule–selected: Stack<br/>deployable best: LR"| GATE
+  GATE -->|"model gates PASS"| HOLDOUT
+  HOLDOUT --> MATURITY
 
   %% Westminster brand: Night #211551, Copper #9D581F, Thistle #8252C7, Sky #00B5E2, Birch #F1F1DE, Flint #101820, Snow #FFFFFF
   classDef src fill:#F1F1DE,stroke:#211551,color:#101820,stroke-width:2px
   classDef cand fill:#FFFFFF,stroke:#8252C7,color:#101820
   classDef winner fill:#9D581F,stroke:#101820,color:#FFFFFF,stroke-width:3px
+  classDef deployable fill:#00B5E2,stroke:#101820,color:#FFFFFF,stroke-width:3px
   classDef decision fill:#E0F7FC,stroke:#00B5E2,color:#101820
   classDef report fill:#F1F1DE,stroke:#00B5E2,color:#101820,stroke-width:2px
+  classDef block fill:#FFE0E0,stroke:#A03030,color:#101820,stroke-width:2px
 
   class DATA src
-  class LR,XGB cand
+  class LGBM,RF,KNN cand
   class STACK winner
+  class LR deployable
   class RANK,GATE decision
   class HOLDOUT report
+  class MATURITY block

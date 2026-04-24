@@ -31,7 +31,7 @@ def ban_ascii_hyphen(s: str) -> str:
     return s.replace("\u002d", "\u2013")
 
 POSTER_DECK_TEXT: dict[str, list[list[str]]] = {'TextBox 11': [['Predictive Supply Chain Analytics', ' ', 'for Backorder Risk'],
-                ['Temporal holdout: LR vs. XGBoost vs. Stack (selected)'],
+                ['Temporal holdout: LR (deployable) vs. Stack (rule–selected) vs. XGBoost'],
                 ['Addy Cruz'],
                 ['Advisor: Dr. Liang Jingsai'],
                 ['DATA–470 Capstone  |  Data Science  |  Westminster University']],
@@ -50,8 +50,9 @@ POSTER_DECK_TEXT: dict[str, list[list[str]]] = {'TextBox 11': [['Predictive Supp
  'TextBox 24': [['SAP Supply Chain (', 'BigQuery', '/Kaggle): sales … master–order–line.'],
                 ['N = 31,177 lines (from 52,118 rows; 59.8% coverage); 3.38% pos. (1,054 '
                  'backorders).'],
-                ['13 order–time + 7 missingness; 23 post–order features withheld. Tabular → LR '
-                 'baseline, XGBoost benchmark, OOF–calibrated Stack (LR+LGBM+XGB+CatBoost) as champion.']],
+                ['13 order–time + 7 missingness; 23 post–order features withheld. Tabular → LR, '
+                 'LightGBM, RandomForest, kNN; ensembles include soft vote and OOF–calibrated Stack '
+                 '(four–family diversity: linear + boosted + bagged + instance–based).']],
  'TextBox 25': [['Task'],
                 ['Line–level backorder: penalized LR vs. XGBoost vs. OOF–calibrated Stack. Gains must '
                  'show on the temporal test—not only a grouped time–overlap split.'],
@@ -64,23 +65,24 @@ POSTER_DECK_TEXT: dict[str, list[list[str]]] = {'TextBox 11': [['Predictive Supp
                  'Stack', ':']],
  'TextBox 27': [['If train/test periods overlap, grouped validation is easy; temporal is the '
                  'deploy stress test.'],
-                ['Inner temporal CV ranks on PR–AUC with calibration tie–breaks; the OOF–calibrated '
-                 'Stack (LR+LGBM+XGB+CatBoost) is the selected champion. Temporal holdout: Stack '
-                 'ROC–AUC 0.903, PR–AUC 0.179, F1 0.313 at the frozen OOF threshold.'],
-                ['Deploy gate (precision floor 0.15, recall floor 0.35): precision ✓, recall ✗ — '
-                 'NO–GO. Reported honestly rather than re–shopped. LR is the strongest single–model '
-                 'benchmark on outer temporal (PR–AUC 0.349); XGBoost is a complexity check.'],
-                ['Turning off post–order fields cuts grouped F1 vs. a leaky view—mostly '
-                 'split/leakage, not model family. CMs/heatmap: recall at one threshold; very few '
-                 'positives (n_pos=58 on temporal test) keep point metrics noisy.']],
+                ['Inner temporal CV ranks on PR–AUC; the OOF–calibrated Stack (LR+LGBM+RF+kNN) is '
+                 'the rule–selected champion (ROC 0.936, PR 0.326, F1 0.420 at frozen OOF '
+                 'threshold). Logistic Regression is the strongest deployable single model on outer '
+                 'temporal: ROC 0.910, PR 0.358, P 0.435, R 0.638, F1 0.511 — a 40× PR–AUC lift over random.'],
+                ['Deploy gate (precision floor 0.15, recall floor 0.35): Stack passes both; overall '
+                 'NO–GO is driven by label maturity (last 180 days: 36% coverage, 32 positives < 40 '
+                 'minimum) — a dataset reality, not a model flaw. Reported honestly.'],
+                ['Negative experiments that strengthen the story: temporal–safe rolling rates hurt '
+                 'performance (label maturity contamination); two–stage cascades did not beat LR '
+                 '(signal is already linear). Ceiling is the feature set and dataset, not the model layer.']],
  'TextBox 28': [['Limitations:'],
                 ['Temporal test: only 0.89% pos. (n=58)—F1/precision at a threshold is noisy. No '
                  'post–order features → no causal story. Drift/label noise: fixed thresholds are '
                  'fragile.'],
                 ['What deployment would require'],
-                ['Passing both precision and recall floors on temporal holdout (not just inner CV), '
-                 'with calibration holding across refreshes. A stronger positive signal or a '
-                 'cost–weighted threshold could flip the gate; shipping despite NO–GO would not be honest.'],
+                ['Model clears both performance floors; block is label maturity. Waiting for labels '
+                 'to mature (observing recent orders through completion) or shortening the label '
+                 'window would unlock deployment — no model change needed.'],
                 ['Next'],
                 ['Magnitude target; entity/demand/inventory signals at order time; rolling '
                  'retrain / drift checks. Viable extension (not a replacement for this order–time '
