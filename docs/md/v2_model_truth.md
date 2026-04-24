@@ -39,10 +39,18 @@ Do not choose the final model from random-split results.
 ## Current Champion and Deployment Status (honest)
 
 - **Selected champion:** `oof_calibrated_stack` (inner temporal PR-AUC dominates; tie-breaks on calibration).
-- **Temporal holdout at frozen OOF threshold:** ROC-AUC 0.903, PR-AUC 0.179, precision 0.316, recall 0.310, F1 0.313 (n_test = 6,521; n_positive = 58).
-- **Deploy gate (precision floor 0.15, recall floor 0.35):** precision ✓, recall ✗ — **NO-GO**.
-- **Reporting stance:** report the gate failure. Do not re-run selection against the gate, do not swap gate-model to a different candidate to manufacture a GO banner. Honest evaluation is the deliverable.
-- **Context:** on outer temporal holdout, logistic regression posts the highest single-model PR-AUC (0.349). The stack wins inner CV and is the rule-selected champion; the LR-vs-stack outer gap is part of the honest story, not a contradiction.
+- **Base learners in stack:** Logistic Regression, LightGBM, RandomForest, kNN. Four distinct model families (linear, boosted tree, bagged tree, instance-based). CatBoost and XGBoost were removed from the stack — three GBDTs do not contribute three viewpoints.
+- **Hyperparameter tuning:** LR, LightGBM, and RandomForest tuned via multi-phase grid search with temporal expanding-window folds, scored on PR-AUC. kNN left untuned (F1 0.119 / recall 0.069 on baseline — shape that no tuning can rescue). Tuned parameters persisted in `models/hyperparameters_tuned_v2_ordertime.json`; pipelines read them automatically.
+- **Temporal holdout at frozen OOF threshold (tuned run):**
+  - Stack: ROC-AUC 0.927, PR-AUC 0.244, precision 0.264, recall 0.552, F1 0.358.
+  - Logistic Regression: ROC-AUC 0.910, PR-AUC 0.358, precision 0.453, recall 0.586, F1 0.511 (still the strongest single model by F1).
+  - (n_test = 6,521; n_positive = 58.)
+- **Deploy gate (precision floor 0.15, recall floor 0.35):** precision ✓ (0.264), recall ✓ (0.552). **Both model gates pass.**
+- **Overall `gate_pass`: false — blocked by the label maturity gate, not by the model.** The last-180-days window has only 36% label coverage and 32 observed positives (min 40). Recent orders have not had time to become backorders (or not), so the operational reliability check fails on the data, not on model performance.
+- **Reporting stance:** report the honest result — the trained model clears its performance floors; deployment is blocked by dataset freshness/label maturity. Possible paths forward: (1) accept a longer observation window before labeling is considered mature, (2) shorten the operational label window (e.g. T+30 days instead of T+90), (3) retrain more frequently as labels mature. Do not shop the gate to force a GO banner.
+- **Context — pre-fix baseline vs tuned run:**
+  - Stack PR-AUC rose from 0.111 (post-threshold-fix honest floor) to 0.244 (tuned). F1 from 0.190 to 0.358.
+  - The pre-existing `0.179 PR-AUC, 0.313 F1` stack numbers were flattered by a threshold-calibration leakage bug (threshold picked against `y_test`); those numbers should not be cited as baseline.
 
 ## Project Story
 
