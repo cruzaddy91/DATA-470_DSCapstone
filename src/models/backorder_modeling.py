@@ -214,36 +214,68 @@ def _stack_oof_probability_matrix(
     train_index: np.ndarray,
     base_names: list[str],
     base_templates: dict[str, Any],
-) -> tuple[np.ndarray, int]:
-    """Train-only OOF positive-class probabilities for stack bases (no holdout leakage)."""
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """
+    Forward-time OOF positive-class probabilities for stack base learners.
+
+    Uses sklearn ``TimeSeriesSplit`` over date-sorted training rows: each fold
+    trains on strictly-prior data and predicts on the next chronological block.
+    Random ``StratifiedKFold`` would leak future rows into earlier-fold training
+    because the meta-LR would see base probabilities informed by dates the
+    stack could not have known about at inference time.
+
+    Returns
+    -------
+    oof :
+        (n_train, n_bases) probability matrix. Rows in the earliest seed block
+        (never used as a test fold) contain NaN — meta-LR must drop them via
+        the returned mask.
+    mask :
+        Boolean array of length n_train; True for rows that received an OOF
+        prediction across all base learners.
+    n_splits :
+        Number of temporal folds actually used.
+    """
     if not base_names:
-        return np.zeros((0, 0), dtype=float), 0
+        return np.zeros((0, 0), dtype=float), np.zeros(0, dtype=bool), 0
     X_train = dataset.features.iloc[train_index]
     y_train_arr = dataset.target.iloc[train_index].to_numpy()
     train_dates = pd.to_datetime(dataset.meta.iloc[train_index][DATE_COLUMN], errors="coerce")
-    min_count = int(np.bincount(y_train_arr.astype(int), minlength=2).min()) if len(y_train_arr) else 0
-    n_splits = max(2, min(5, min_count)) if min_count >= 2 else 0
-    if n_splits < 2:
-        return np.zeros((len(X_train), len(base_names)), dtype=float), 0
-    oof = np.zeros((len(X_train), len(base_names)), dtype=float)
-    from sklearn.model_selection import StratifiedKFold
 
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
-    for tr_idx, va_idx in skf.split(X_train, y_train_arr):
-        # SMOTE removed from OOF fold fits so the meta-LR learns a mapping that matches
-        # the test-time stack (final refit also runs on raw training data). Class imbalance
-        # is handled at each base learner via class_weight / scale_pos_weight.
+    min_count = int(np.bincount(y_train_arr.astype(int), minlength=2).min()) if len(y_train_arr) else 0
+    if min_count < 2:
+        return (
+            np.zeros((len(X_train), len(base_names)), dtype=float),
+            np.zeros(len(X_train), dtype=bool),
+            0,
+        )
+    n_splits = max(2, min(5, min_count))
+
+    oof = np.full((len(X_train), len(base_names)), np.nan, dtype=float)
+    order = np.argsort(train_dates.to_numpy(), kind="stable")
+    from sklearn.model_selection import TimeSeriesSplit
+
+    tss = TimeSeriesSplit(n_splits=n_splits)
+    for tr_ord_idx, va_ord_idx in tss.split(order):
+        tr_idx = order[tr_ord_idx]
+        va_idx = order[va_ord_idx]
+        y_tr = y_train_arr[tr_idx]
+        # Skip folds whose training block is single-class — class_weight="balanced"
+        # cannot calibrate without both classes present.
+        if len(np.unique(y_tr)) < 2:
+            continue
         X_tr_raw = X_train.iloc[tr_idx]
-        y_tr_raw = y_train_arr[tr_idx]
         fold_weight = build_training_sample_weights(
-            y_tr_raw,
+            y_tr,
             train_dates=train_dates.iloc[tr_idx],
         )
         for j, model_name in enumerate(base_names):
             pipe = clone(base_templates[model_name])
-            fit_pipeline_maybe_weighted(pipe, X_tr_raw, y_tr_raw, fold_weight)
+            fit_pipeline_maybe_weighted(pipe, X_tr_raw, y_tr, fold_weight)
             oof[va_idx, j] = pipe.predict_proba(X_train.iloc[va_idx])[:, 1]
-    return oof, n_splits
+
+    mask = ~np.isnan(oof).any(axis=1)
+    return oof, mask, n_splits
 
 
 def _stack_oof_pr_aucs_per_model(base_names: list[str], oof: np.ndarray, y_arr: np.ndarray) -> dict[str, float]:
@@ -254,8 +286,15 @@ def _stack_oof_pr_aucs_per_model(base_names: list[str], oof: np.ndarray, y_arr: 
     if len(np.unique(y_arr)) < 2:
         return {name: 0.0 for name in base_names}
     out: dict[str, float] = {}
+    # TimeSeriesSplit leaves an initial seed block without OOF predictions; drop those rows.
+    row_mask = ~np.isnan(oof).any(axis=1)
+    if not row_mask.any():
+        return {name: 0.0 for name in base_names}
+    y_masked = y_arr[row_mask]
+    if len(np.unique(y_masked)) < 2:
+        return {name: 0.0 for name in base_names}
     for j, name in enumerate(base_names):
-        out[name] = float(average_precision_score(y_arr, oof[:, j]))
+        out[name] = float(average_precision_score(y_masked, oof[row_mask, j]))
     return out
 
 
@@ -1120,19 +1159,21 @@ def _evaluate_models(
         train_dates = pd.to_datetime(dataset.meta.iloc[train_index][DATE_COLUMN], errors="coerce")
 
         base_templates = build_all_v2_binary_classifiers(dataset, dataset.target.iloc[train_index])
-        oof_full, n_splits = _stack_oof_probability_matrix(dataset, train_index, stack_raw, base_templates)
-        if n_splits >= 2:
+        oof_full, oof_mask, n_splits = _stack_oof_probability_matrix(dataset, train_index, stack_raw, base_templates)
+        if n_splits >= 2 and oof_mask.any():
             stack_candidates, _, prune_meta = _prune_stack_base_names(stack_raw, oof_full, y_train_arr)
             col_ix = [stack_raw.index(n) for n in stack_candidates]
             oof = oof_full[:, col_ix]
 
+            # Meta-LR trains only on rows that received OOF predictions from every base learner.
+            # The earliest seed block (never used as a TimeSeriesSplit test fold) is dropped.
             meta_model = SkPipeline(
                 steps=[
                     ("scale", StandardScaler()),
                     ("model", LogisticRegression(max_iter=2000, class_weight="balanced", random_state=42)),
                 ]
             )
-            meta_model.fit(oof, y_train_arr)
+            meta_model.fit(oof[oof_mask], y_train_arr[oof_mask])
 
             # Fit base models on full train for test-time stack inference. SMOTE removed from
             # this path: OOF fold fits use raw training data, so the final refit must match —
@@ -1153,11 +1194,12 @@ def _evaluate_models(
             # Threshold is picked on train-only OOF-meta probabilities — never on y_test.
             # Using y_test here was a calibration-layer leakage bug that flattered the
             # stack's temporal holdout metrics.
-            p_stack_oof = meta_model.predict_proba(oof)[:, 1]
+            p_stack_oof = meta_model.predict_proba(oof[oof_mask])[:, 1]
+            y_train_masked = y_train_arr[oof_mask]
             precision_floor = float(os.environ.get("MODEL_PRECISION_FLOOR", "0.35"))
-            guard = max(1, int(np.ceil((y_train_arr == 1).sum() * 0.5)))
+            guard = max(1, int(np.ceil((y_train_masked == 1).sum() * 0.5)))
             threshold, objective = select_threshold_with_precision_floor(
-                y_train_arr,
+                y_train_masked,
                 p_stack_oof,
                 precision_floor=precision_floor,
                 min_predicted_positives=guard,
@@ -2544,7 +2586,7 @@ def _save_model_artifacts(dataset: PreparedDataset, paths: dict[str, Path]) -> d
         joblib.dump(ensemble, paths["models"] / MODEL_FILE_MAP["soft_vote_lr_lightgbm"])
         fitted_full_models["soft_vote_lr_lightgbm"] = ensemble
     stack_base_names = [
-        name for name in ["logistic_regression", "lightgbm", "xgboost", "catboost"] if name in fitted_full_models
+        name for name in ["logistic_regression", "lightgbm", "random_forest", "knn"] if name in fitted_full_models
     ]
     if len(stack_base_names) >= 2:
         from sklearn.linear_model import LogisticRegression
@@ -2553,7 +2595,9 @@ def _save_model_artifacts(dataset: PreparedDataset, paths: dict[str, Path]) -> d
 
         full_idx = np.arange(len(dataset.target), dtype=int)
         base_templates = build_all_v2_binary_classifiers(dataset, dataset.target)
-        oof_full, n_splits = _stack_oof_probability_matrix(dataset, full_idx, stack_base_names, base_templates)
+        oof_full, _oof_mask_overfit, n_splits = _stack_oof_probability_matrix(
+            dataset, full_idx, stack_base_names, base_templates
+        )
         y_train = dataset.target.to_numpy().astype(int)
         if n_splits < 2:
             pruned_stack_names = list(stack_base_names)
