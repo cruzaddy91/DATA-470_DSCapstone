@@ -360,6 +360,13 @@ def _get_plotting_modules():
 
 
 def _load_modeling_table(paths: dict[str, Path]) -> pd.DataFrame:
+    """Load the order-time modeling table. If MODEL_ENABLE_ROLLUP_FEATURES=1
+    and the rollup file exists, load that instead — adds temporal-safe
+    rolling features built by scripts/build_v2_rolling_features.py."""
+    use_rollup = os.environ.get("MODEL_ENABLE_ROLLUP_FEATURES", "0") == "1"
+    rollup_path = paths["processed"] / "master_order_fulfillment_modeling_v2_ordertime_rollup.csv"
+    if use_rollup and rollup_path.exists():
+        return pd.read_csv(rollup_path, low_memory=False)
     order_path = paths["processed"] / MODELING_TABLE_FILE
     if not order_path.exists():
         raise FileNotFoundError(f"Missing processed order-time modeling table: {order_path}")
@@ -513,6 +520,28 @@ def prepare_backorder_dataset(project_root: str | Path | None = None) -> Prepare
         order["confirmation_fill_ratio"] = 1.0
 
     derived_numeric_features = ["confirmation_gap_qty", "confirmation_fill_ratio"]
+
+    # Temporal-safe rolling features added by scripts/build_v2_rolling_features.py.
+    # Only consumed when MODEL_ENABLE_ROLLUP_FEATURES=1 is set AND the columns are
+    # present in the loaded table. NaNs (first-observation-per-cohort rows) get
+    # imputed with the column median on the fly — neutral prior, not 0 which
+    # would bias downward given non-zero base rate.
+    _rollup_columns = [
+        "plant_backorder_rate_90d",
+        "material_backorder_rate_90d",
+        "customer_backorder_rate_90d",
+        "plant_order_volume_30d",
+        "material_order_volume_30d",
+        "customer_order_volume_30d",
+        "plant_confirmation_rate_90d",
+    ]
+    if os.environ.get("MODEL_ENABLE_ROLLUP_FEATURES", "0") == "1":
+        for col in _rollup_columns:
+            if col in order.columns:
+                ser = pd.to_numeric(order[col], errors="coerce")
+                median_val = float(ser.median()) if ser.notna().any() else 0.0
+                order[col] = ser.fillna(median_val).replace([np.inf, -np.inf], median_val)
+                derived_numeric_features.append(col)
 
     # Optional signal expansion tuned for rare-positive recall.
     # Uses only values known at order creation (no future outcomes).
