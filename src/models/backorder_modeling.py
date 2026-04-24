@@ -1106,7 +1106,10 @@ def _evaluate_models(
         predictions["soft_vote_lr_lightgbm"] = {"y_pred": y_pred, "y_proba": p_blend}
 
     # OOF-calibrated stacking over available base models (strictly train-only OOF for meta fit).
-    stack_raw = [name for name in ["logistic_regression", "lightgbm", "xgboost", "catboost"] if name in metrics_by_model]
+    # Convention: cover distinct model families. LR (linear) + LightGBM (boosted trees) +
+    # RandomForest (bagged trees) + kNN (instance-based). XGBoost/CatBoost are excluded — they
+    # are highly correlated with LightGBM and do not add independent signal to the meta model.
+    stack_raw = [name for name in ["logistic_regression", "lightgbm", "random_forest", "knn"] if name in metrics_by_model]
     if len(stack_raw) >= 2:
         from sklearn.linear_model import LogisticRegression
         from sklearn.pipeline import Pipeline as SkPipeline
@@ -1133,36 +1136,39 @@ def _evaluate_models(
             )
             meta_model.fit(oof, y_train_arr)
 
-            # Fit base models on full train for test-time stack inference.
+            # Fit base models on full train for test-time stack inference. SMOTE removed from
+            # this path: OOF fold fits use raw training data, so the final refit must match —
+            # otherwise the meta-LR learns a mapping from OOF probabilities that the test-time
+            # stack cannot reproduce. Class imbalance is handled at each base learner via
+            # class_weight / scale_pos_weight.
             z_test_cols = []
             fitted_estimators: list[tuple[str, Any]] = []
             full_weight = build_training_sample_weights(y_train_arr, train_dates=train_dates)
-            n_fb = len(X_train)
-            X_full, y_full = maybe_smote_resample_training(
-                X_train, y_train_arr, list(dataset.categorical_features)
-            )
-            full_weight = extend_sample_weight_after_smote(full_weight, n_fb, len(X_full))
             for model_name in stack_candidates:
                 pipe_full = clone(base_templates[model_name])
-                fit_pipeline_maybe_weighted(pipe_full, X_full, y_full, full_weight)
+                fit_pipeline_maybe_weighted(pipe_full, X_train, y_train_arr, full_weight)
                 fitted_estimators.append((model_name, pipe_full))
                 z_test_cols.append(pipe_full.predict_proba(X_test)[:, 1])
             z_test = np.column_stack(z_test_cols)
             p_stack = meta_model.predict_proba(z_test)[:, 1]
 
+            # Threshold is picked on train-only OOF-meta probabilities — never on y_test.
+            # Using y_test here was a calibration-layer leakage bug that flattered the
+            # stack's temporal holdout metrics.
+            p_stack_oof = meta_model.predict_proba(oof)[:, 1]
             precision_floor = float(os.environ.get("MODEL_PRECISION_FLOOR", "0.35"))
-            guard = max(1, int(np.ceil((y_test == 1).sum() * 0.5)))
+            guard = max(1, int(np.ceil((y_train_arr == 1).sum() * 0.5 * (len(y_test) / max(len(y_train_arr), 1)))))
             threshold, objective = select_threshold_with_precision_floor(
-                y_test,
-                p_stack,
+                y_train_arr,
+                p_stack_oof,
                 precision_floor=precision_floor,
-                min_predicted_positives=guard,
+                min_predicted_positives=max(1, guard),
             )
             y_pred = (p_stack >= threshold).astype(int)
             stack_metrics = compute_classification_metrics(y_test, y_pred, p_stack)
-            stack_metrics["smote_enabled"] = 1.0 if os.environ.get("MODEL_ENABLE_SMOTE", "0") == "1" else 0.0
+            stack_metrics["smote_enabled"] = 0.0
             stack_metrics["decision_threshold"] = float(threshold)
-            stack_metrics["threshold_calibration_strategy"] = f"oof_calibrated_stack__{objective}"
+            stack_metrics["threshold_calibration_strategy"] = f"oof_calibrated_stack__train_oof__{objective}"
             stack_metrics["threshold_calibration_train_rows"] = float(len(train_index))
             stack_metrics["threshold_calibration_oof_folds"] = float(n_splits)
             stack_metrics["stack_base_models_pre_prune"] = ",".join(stack_raw)
