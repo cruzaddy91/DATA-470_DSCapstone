@@ -104,8 +104,12 @@ MODEL_FILE_MAP = {
     "lightgbm": f"backorder_lightgbm{ARTIFACT_SUFFIX}.joblib",
     "xgboost": f"backorder_xgboost{ARTIFACT_SUFFIX}.joblib",
     "catboost": f"backorder_catboost{ARTIFACT_SUFFIX}.joblib",
+    "random_forest": f"backorder_random_forest{ARTIFACT_SUFFIX}.joblib",
+    "knn": f"backorder_knn{ARTIFACT_SUFFIX}.joblib",
     "soft_vote_lr_lightgbm": f"backorder_soft_vote_lr_lightgbm{ARTIFACT_SUFFIX}.joblib",
+    "soft_vote_4_bases": f"backorder_soft_vote_4_bases{ARTIFACT_SUFFIX}.joblib",
     "oof_calibrated_stack": f"backorder_oof_calibrated_stack{ARTIFACT_SUFFIX}.joblib",
+    "oof_calibrated_stack_all_bases": f"backorder_oof_calibrated_stack_all_bases{ARTIFACT_SUFFIX}.joblib",
 }
 
 CLASSIFICATION_METRICS_FILE = f"classification_metrics{ARTIFACT_SUFFIX}.json"
@@ -212,38 +216,68 @@ def _stack_oof_probability_matrix(
     train_index: np.ndarray,
     base_names: list[str],
     base_templates: dict[str, Any],
-) -> tuple[np.ndarray, int]:
-    """Train-only OOF positive-class probabilities for stack bases (no holdout leakage)."""
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """
+    Forward-time OOF positive-class probabilities for stack base learners.
+
+    Uses sklearn ``TimeSeriesSplit`` over date-sorted training rows: each fold
+    trains on strictly-prior data and predicts on the next chronological block.
+    Random ``StratifiedKFold`` would leak future rows into earlier-fold training
+    because the meta-LR would see base probabilities informed by dates the
+    stack could not have known about at inference time.
+
+    Returns
+    -------
+    oof :
+        (n_train, n_bases) probability matrix. Rows in the earliest seed block
+        (never used as a test fold) contain NaN — meta-LR must drop them via
+        the returned mask.
+    mask :
+        Boolean array of length n_train; True for rows that received an OOF
+        prediction across all base learners.
+    n_splits :
+        Number of temporal folds actually used.
+    """
     if not base_names:
-        return np.zeros((0, 0), dtype=float), 0
+        return np.zeros((0, 0), dtype=float), np.zeros(0, dtype=bool), 0
     X_train = dataset.features.iloc[train_index]
     y_train_arr = dataset.target.iloc[train_index].to_numpy()
     train_dates = pd.to_datetime(dataset.meta.iloc[train_index][DATE_COLUMN], errors="coerce")
-    min_count = int(np.bincount(y_train_arr.astype(int), minlength=2).min()) if len(y_train_arr) else 0
-    n_splits = max(2, min(5, min_count)) if min_count >= 2 else 0
-    if n_splits < 2:
-        return np.zeros((len(X_train), len(base_names)), dtype=float), 0
-    oof = np.zeros((len(X_train), len(base_names)), dtype=float)
-    from sklearn.model_selection import StratifiedKFold
 
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
-    for tr_idx, va_idx in skf.split(X_train, y_train_arr):
+    min_count = int(np.bincount(y_train_arr.astype(int), minlength=2).min()) if len(y_train_arr) else 0
+    if min_count < 2:
+        return (
+            np.zeros((len(X_train), len(base_names)), dtype=float),
+            np.zeros(len(X_train), dtype=bool),
+            0,
+        )
+    n_splits = max(2, min(5, min_count))
+
+    oof = np.full((len(X_train), len(base_names)), np.nan, dtype=float)
+    order = np.argsort(train_dates.to_numpy(), kind="stable")
+    from sklearn.model_selection import TimeSeriesSplit
+
+    tss = TimeSeriesSplit(n_splits=n_splits)
+    for tr_ord_idx, va_ord_idx in tss.split(order):
+        tr_idx = order[tr_ord_idx]
+        va_idx = order[va_ord_idx]
+        y_tr = y_train_arr[tr_idx]
+        # Skip folds whose training block is single-class — class_weight="balanced"
+        # cannot calibrate without both classes present.
+        if len(np.unique(y_tr)) < 2:
+            continue
         X_tr_raw = X_train.iloc[tr_idx]
-        y_tr_raw = y_train_arr[tr_idx]
         fold_weight = build_training_sample_weights(
-            y_tr_raw,
+            y_tr,
             train_dates=train_dates.iloc[tr_idx],
         )
-        n_b = len(X_tr_raw)
-        X_tr_sm, y_tr_sm = maybe_smote_resample_training(
-            X_tr_raw, y_tr_raw, list(dataset.categorical_features)
-        )
-        fold_weight = extend_sample_weight_after_smote(fold_weight, n_b, len(X_tr_sm))
         for j, model_name in enumerate(base_names):
             pipe = clone(base_templates[model_name])
-            fit_pipeline_maybe_weighted(pipe, X_tr_sm, y_tr_sm, fold_weight)
+            fit_pipeline_maybe_weighted(pipe, X_tr_raw, y_tr, fold_weight)
             oof[va_idx, j] = pipe.predict_proba(X_train.iloc[va_idx])[:, 1]
-    return oof, n_splits
+
+    mask = ~np.isnan(oof).any(axis=1)
+    return oof, mask, n_splits
 
 
 def _stack_oof_pr_aucs_per_model(base_names: list[str], oof: np.ndarray, y_arr: np.ndarray) -> dict[str, float]:
@@ -254,8 +288,15 @@ def _stack_oof_pr_aucs_per_model(base_names: list[str], oof: np.ndarray, y_arr: 
     if len(np.unique(y_arr)) < 2:
         return {name: 0.0 for name in base_names}
     out: dict[str, float] = {}
+    # TimeSeriesSplit leaves an initial seed block without OOF predictions; drop those rows.
+    row_mask = ~np.isnan(oof).any(axis=1)
+    if not row_mask.any():
+        return {name: 0.0 for name in base_names}
+    y_masked = y_arr[row_mask]
+    if len(np.unique(y_masked)) < 2:
+        return {name: 0.0 for name in base_names}
     for j, name in enumerate(base_names):
-        out[name] = float(average_precision_score(y_arr, oof[:, j]))
+        out[name] = float(average_precision_score(y_masked, oof[row_mask, j]))
     return out
 
 
@@ -319,6 +360,13 @@ def _get_plotting_modules():
 
 
 def _load_modeling_table(paths: dict[str, Path]) -> pd.DataFrame:
+    """Load the order-time modeling table. If MODEL_ENABLE_ROLLUP_FEATURES=1
+    and the rollup file exists, load that instead — adds temporal-safe
+    rolling features built by scripts/build_v2_rolling_features.py."""
+    use_rollup = os.environ.get("MODEL_ENABLE_ROLLUP_FEATURES", "0") == "1"
+    rollup_path = paths["processed"] / "master_order_fulfillment_modeling_v2_ordertime_rollup.csv"
+    if use_rollup and rollup_path.exists():
+        return pd.read_csv(rollup_path, low_memory=False)
     order_path = paths["processed"] / MODELING_TABLE_FILE
     if not order_path.exists():
         raise FileNotFoundError(f"Missing processed order-time modeling table: {order_path}")
@@ -472,6 +520,37 @@ def prepare_backorder_dataset(project_root: str | Path | None = None) -> Prepare
         order["confirmation_fill_ratio"] = 1.0
 
     derived_numeric_features = ["confirmation_gap_qty", "confirmation_fill_ratio"]
+
+    # Temporal-safe rolling features added by scripts/build_v2_rolling_features.py.
+    # Only consumed when MODEL_ENABLE_ROLLUP_FEATURES=1 is set AND the columns are
+    # present in the loaded table. NaNs (first-observation-per-cohort rows) get
+    # imputed with the column median on the fly — neutral prior, not 0 which
+    # would bias downward given non-zero base rate.
+    # Target-dependent rollups (backorder_rate_90d) inherit label maturity bias in
+    # the training tail; gate them separately and default them OFF.
+    _rollup_target_dependent = [
+        "plant_backorder_rate_90d",
+        "material_backorder_rate_90d",
+        "customer_backorder_rate_90d",
+    ]
+    _rollup_target_independent = [
+        "plant_order_volume_30d",
+        "material_order_volume_30d",
+        "customer_order_volume_30d",
+        "plant_confirmation_rate_90d",
+    ]
+    rollup_on = os.environ.get("MODEL_ENABLE_ROLLUP_FEATURES", "0") == "1"
+    include_target_dep = os.environ.get("MODEL_ROLLUP_INCLUDE_TARGET_DEP", "0") == "1"
+    if rollup_on:
+        cols = list(_rollup_target_independent)
+        if include_target_dep:
+            cols += _rollup_target_dependent
+        for col in cols:
+            if col in order.columns:
+                ser = pd.to_numeric(order[col], errors="coerce")
+                median_val = float(ser.median()) if ser.notna().any() else 0.0
+                order[col] = ser.fillna(median_val).replace([np.inf, -np.inf], median_val)
+                derived_numeric_features.append(col)
 
     # Optional signal expansion tuned for rare-positive recall.
     # Uses only values known at order creation (no future outcomes).
@@ -1104,7 +1183,10 @@ def _evaluate_models(
         predictions["soft_vote_lr_lightgbm"] = {"y_pred": y_pred, "y_proba": p_blend}
 
     # OOF-calibrated stacking over available base models (strictly train-only OOF for meta fit).
-    stack_raw = [name for name in ["logistic_regression", "lightgbm", "xgboost", "catboost"] if name in metrics_by_model]
+    # Convention: cover distinct model families. LR (linear) + LightGBM (boosted trees) +
+    # RandomForest (bagged trees) + kNN (instance-based). XGBoost/CatBoost are excluded — they
+    # are highly correlated with LightGBM and do not add independent signal to the meta model.
+    stack_raw = [name for name in ["logistic_regression", "lightgbm", "random_forest", "knn"] if name in metrics_by_model]
     if len(stack_raw) >= 2:
         from sklearn.linear_model import LogisticRegression
         from sklearn.pipeline import Pipeline as SkPipeline
@@ -1117,50 +1199,56 @@ def _evaluate_models(
         train_dates = pd.to_datetime(dataset.meta.iloc[train_index][DATE_COLUMN], errors="coerce")
 
         base_templates = build_all_v2_binary_classifiers(dataset, dataset.target.iloc[train_index])
-        oof_full, n_splits = _stack_oof_probability_matrix(dataset, train_index, stack_raw, base_templates)
-        if n_splits >= 2:
+        oof_full, oof_mask, n_splits = _stack_oof_probability_matrix(dataset, train_index, stack_raw, base_templates)
+        if n_splits >= 2 and oof_mask.any():
             stack_candidates, _, prune_meta = _prune_stack_base_names(stack_raw, oof_full, y_train_arr)
             col_ix = [stack_raw.index(n) for n in stack_candidates]
             oof = oof_full[:, col_ix]
 
+            # Meta-LR trains only on rows that received OOF predictions from every base learner.
+            # The earliest seed block (never used as a TimeSeriesSplit test fold) is dropped.
             meta_model = SkPipeline(
                 steps=[
                     ("scale", StandardScaler()),
                     ("model", LogisticRegression(max_iter=2000, class_weight="balanced", random_state=42)),
                 ]
             )
-            meta_model.fit(oof, y_train_arr)
+            meta_model.fit(oof[oof_mask], y_train_arr[oof_mask])
 
-            # Fit base models on full train for test-time stack inference.
+            # Fit base models on full train for test-time stack inference. SMOTE removed from
+            # this path: OOF fold fits use raw training data, so the final refit must match —
+            # otherwise the meta-LR learns a mapping from OOF probabilities that the test-time
+            # stack cannot reproduce. Class imbalance is handled at each base learner via
+            # class_weight / scale_pos_weight.
             z_test_cols = []
             fitted_estimators: list[tuple[str, Any]] = []
             full_weight = build_training_sample_weights(y_train_arr, train_dates=train_dates)
-            n_fb = len(X_train)
-            X_full, y_full = maybe_smote_resample_training(
-                X_train, y_train_arr, list(dataset.categorical_features)
-            )
-            full_weight = extend_sample_weight_after_smote(full_weight, n_fb, len(X_full))
             for model_name in stack_candidates:
                 pipe_full = clone(base_templates[model_name])
-                fit_pipeline_maybe_weighted(pipe_full, X_full, y_full, full_weight)
+                fit_pipeline_maybe_weighted(pipe_full, X_train, y_train_arr, full_weight)
                 fitted_estimators.append((model_name, pipe_full))
                 z_test_cols.append(pipe_full.predict_proba(X_test)[:, 1])
             z_test = np.column_stack(z_test_cols)
             p_stack = meta_model.predict_proba(z_test)[:, 1]
 
+            # Threshold is picked on train-only OOF-meta probabilities — never on y_test.
+            # Using y_test here was a calibration-layer leakage bug that flattered the
+            # stack's temporal holdout metrics.
+            p_stack_oof = meta_model.predict_proba(oof[oof_mask])[:, 1]
+            y_train_masked = y_train_arr[oof_mask]
             precision_floor = float(os.environ.get("MODEL_PRECISION_FLOOR", "0.35"))
-            guard = max(1, int(np.ceil((y_test == 1).sum() * 0.5)))
+            guard = max(1, int(np.ceil((y_train_masked == 1).sum() * 0.5)))
             threshold, objective = select_threshold_with_precision_floor(
-                y_test,
-                p_stack,
+                y_train_masked,
+                p_stack_oof,
                 precision_floor=precision_floor,
                 min_predicted_positives=guard,
             )
             y_pred = (p_stack >= threshold).astype(int)
             stack_metrics = compute_classification_metrics(y_test, y_pred, p_stack)
-            stack_metrics["smote_enabled"] = 1.0 if os.environ.get("MODEL_ENABLE_SMOTE", "0") == "1" else 0.0
+            stack_metrics["smote_enabled"] = 0.0
             stack_metrics["decision_threshold"] = float(threshold)
-            stack_metrics["threshold_calibration_strategy"] = f"oof_calibrated_stack__{objective}"
+            stack_metrics["threshold_calibration_strategy"] = f"oof_calibrated_stack__train_oof__{objective}"
             stack_metrics["threshold_calibration_train_rows"] = float(len(train_index))
             stack_metrics["threshold_calibration_oof_folds"] = float(n_splits)
             stack_metrics["stack_base_models_pre_prune"] = ",".join(stack_raw)
@@ -1178,6 +1266,98 @@ def _evaluate_models(
                 estimators=fitted_estimators,
                 meta_model=meta_model,
             )
+
+            # --- Additional parent models for comparison (not the default champion path) ---
+            #
+            # soft_vote_4_bases: equal-weight average of the same 4 base probabilities the main
+            # stack learns weights over. If this beats oof_calibrated_stack on outer temporal,
+            # the meta-LR is overfitting its weights — a classic stacking cautionary tale.
+            p_bases_stacked = np.column_stack(
+                [pipe.predict_proba(X_test)[:, 1] for _, pipe in fitted_estimators]
+            )
+            p_vote = p_bases_stacked.mean(axis=1)
+            # Threshold via same train-only OOF pattern used by the main stack (equal weights
+            # on the OOF columns the main stack selected).
+            p_vote_oof = oof[oof_mask].mean(axis=1)
+            vote_threshold, vote_objective = select_threshold_with_precision_floor(
+                y_train_masked,
+                p_vote_oof,
+                precision_floor=precision_floor,
+                min_predicted_positives=guard,
+            )
+            y_pred_vote = (p_vote >= vote_threshold).astype(int)
+            vote_metrics = compute_classification_metrics(y_test, y_pred_vote, p_vote)
+            vote_metrics["decision_threshold"] = float(vote_threshold)
+            vote_metrics["threshold_calibration_strategy"] = f"soft_vote_4_bases__train_oof__{vote_objective}"
+            vote_metrics["stack_base_models"] = ",".join([n for n, _ in fitted_estimators])
+            metrics_by_model["soft_vote_4_bases"] = vote_metrics
+            predictions["soft_vote_4_bases"] = {"y_pred": y_pred_vote, "y_proba": p_vote}
+            fitted_models["soft_vote_4_bases"] = SoftVoteBinaryEnsemble(
+                estimators=[pipe for _, pipe in fitted_estimators]
+            )
+
+            # oof_calibrated_stack_all_bases: same meta-LR design, but over every available
+            # base learner (adds XGBoost + CatBoost when MODEL_ENABLE_EXTRA_MODELS=1). Tests
+            # whether the "diversity principle" (drop correlated GBDTs) actually matters on
+            # this data. If this all-bases stack wins on outer PR-AUC, the kitchen-sink
+            # approach was fine and the diversity fix cost us lift.
+            all_bases_raw = [
+                name for name in ["logistic_regression", "lightgbm", "xgboost", "catboost", "random_forest", "knn"]
+                if name in metrics_by_model and name in base_templates
+            ]
+            if len(all_bases_raw) > len(stack_candidates):
+                oof_all, oof_mask_all, n_splits_all = _stack_oof_probability_matrix(
+                    dataset, train_index, all_bases_raw, base_templates
+                )
+                if n_splits_all >= 2 and oof_mask_all.any():
+                    all_candidates, _, all_prune_meta = _prune_stack_base_names(all_bases_raw, oof_all, y_train_arr)
+                    col_ix_all = [all_bases_raw.index(n) for n in all_candidates]
+                    oof_a = oof_all[:, col_ix_all]
+
+                    meta_all = SkPipeline(steps=[
+                        ("scale", StandardScaler()),
+                        ("model", LogisticRegression(max_iter=2000, class_weight="balanced", random_state=42)),
+                    ])
+                    meta_all.fit(oof_a[oof_mask_all], y_train_arr[oof_mask_all])
+
+                    # Fit any bases not already fitted in the primary stack (reuse where possible).
+                    already_fitted = {n: p for n, p in fitted_estimators}
+                    z_all_cols = []
+                    all_estimators: list[tuple[str, Any]] = []
+                    for model_name in all_candidates:
+                        if model_name in already_fitted:
+                            pipe_full = already_fitted[model_name]
+                        else:
+                            pipe_full = clone(base_templates[model_name])
+                            fit_pipeline_maybe_weighted(pipe_full, X_train, y_train_arr, full_weight)
+                        all_estimators.append((model_name, pipe_full))
+                        z_all_cols.append(pipe_full.predict_proba(X_test)[:, 1])
+                    z_all = np.column_stack(z_all_cols)
+                    p_all = meta_all.predict_proba(z_all)[:, 1]
+
+                    p_all_oof = meta_all.predict_proba(oof_a[oof_mask_all])[:, 1]
+                    y_masked_all = y_train_arr[oof_mask_all]
+                    guard_all = max(1, int(np.ceil((y_masked_all == 1).sum() * 0.5)))
+                    thr_all, obj_all = select_threshold_with_precision_floor(
+                        y_masked_all,
+                        p_all_oof,
+                        precision_floor=precision_floor,
+                        min_predicted_positives=guard_all,
+                    )
+                    y_pred_all = (p_all >= thr_all).astype(int)
+                    all_metrics = compute_classification_metrics(y_test, y_pred_all, p_all)
+                    all_metrics["decision_threshold"] = float(thr_all)
+                    all_metrics["threshold_calibration_strategy"] = f"oof_calibrated_stack_all_bases__train_oof__{obj_all}"
+                    all_metrics["threshold_calibration_oof_folds"] = float(n_splits_all)
+                    all_metrics["stack_base_models_pre_prune"] = ",".join(all_bases_raw)
+                    all_metrics["stack_base_models"] = ",".join(all_candidates)
+                    all_metrics.update(all_prune_meta)
+                    metrics_by_model["oof_calibrated_stack_all_bases"] = all_metrics
+                    predictions["oof_calibrated_stack_all_bases"] = {"y_pred": y_pred_all, "y_proba": p_all}
+                    fitted_models["oof_calibrated_stack_all_bases"] = OOFCalibratedStackEnsemble(
+                        estimators=all_estimators,
+                        meta_model=meta_all,
+                    )
 
     return metrics_by_model, fitted_models, predictions
 
@@ -1967,11 +2147,14 @@ def _feature_importance_frame(model_pipeline: Any) -> pd.DataFrame:
     return frame
 
 
-def _plot_feature_importance(importance_frame: pd.DataFrame, output_path: Path) -> None:
+def _plot_feature_importance(
+    importance_frame: pd.DataFrame, output_path: Path, *, title_suffix: str = ""
+) -> None:
     plt, sns = _get_plotting_modules()
     fig, ax = plt.subplots(figsize=(9, 6))
     sns.barplot(data=importance_frame, x="importance", y="feature", ax=ax, orient="h", color=NIGHT)
-    ax.set_title("Leakage-Safe Order-Time Feature Importance")
+    base = "Leakage-Safe Order-Time Feature Importance"
+    ax.set_title(f"{base}{title_suffix}")
     ax.set_xlabel("Importance")
     ax.set_ylabel("Feature")
     plt.tight_layout()
@@ -2535,7 +2718,7 @@ def _save_model_artifacts(dataset: PreparedDataset, paths: dict[str, Path]) -> d
         joblib.dump(ensemble, paths["models"] / MODEL_FILE_MAP["soft_vote_lr_lightgbm"])
         fitted_full_models["soft_vote_lr_lightgbm"] = ensemble
     stack_base_names = [
-        name for name in ["logistic_regression", "lightgbm", "xgboost", "catboost"] if name in fitted_full_models
+        name for name in ["logistic_regression", "lightgbm", "random_forest", "knn"] if name in fitted_full_models
     ]
     if len(stack_base_names) >= 2:
         from sklearn.linear_model import LogisticRegression
@@ -2544,7 +2727,9 @@ def _save_model_artifacts(dataset: PreparedDataset, paths: dict[str, Path]) -> d
 
         full_idx = np.arange(len(dataset.target), dtype=int)
         base_templates = build_all_v2_binary_classifiers(dataset, dataset.target)
-        oof_full, n_splits = _stack_oof_probability_matrix(dataset, full_idx, stack_base_names, base_templates)
+        oof_full, _oof_mask_overfit, n_splits = _stack_oof_probability_matrix(
+            dataset, full_idx, stack_base_names, base_templates
+        )
         y_train = dataset.target.to_numpy().astype(int)
         if n_splits < 2:
             pruned_stack_names = list(stack_base_names)
@@ -2894,6 +3079,18 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
     importance_frame = _feature_importance_frame(selected_pipeline)
     importance_frame.to_csv(paths["tables"] / FEATURE_IMPORTANCE_TABLE_FILE, index=False)
     _plot_feature_importance(importance_frame, paths["figures"] / FEATURE_IMPORTANCE_FIGURE_FILE)
+
+    _ensemble_types = (SoftVoteBinaryEnsemble, OOFCalibratedStackEnsemble)
+    for model_key, pipeline in full_models.items():
+        if isinstance(pipeline, _ensemble_types):
+            continue
+        per_fig = paths["figures"] / f"classification_feature_importance_{model_key}{ARTIFACT_SUFFIX}.png"
+        try:
+            frame = _feature_importance_frame(pipeline)
+            label = model_key.replace("_", " ").title()
+            _plot_feature_importance(frame, per_fig, title_suffix=f" — {label}")
+        except Exception:
+            continue
 
     comparison_table = _build_model_comparison_table(results)
     comparison_table.to_csv(paths["tables"] / MODEL_COMPARISON_TABLE_FILE, index=False)

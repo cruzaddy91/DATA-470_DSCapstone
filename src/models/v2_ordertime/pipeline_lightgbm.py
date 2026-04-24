@@ -12,6 +12,7 @@ from typing import Any
 from sklearn.pipeline import Pipeline
 
 from .preprocessing import build_v2_column_preprocessor
+from .tuned_params import load_tuned_params
 
 try:
     import lightgbm as lgb
@@ -36,20 +37,26 @@ def build_v2_lightgbm_pipeline(dataset: Any) -> Pipeline | None:
     if lgb is None:
         return None
 
+    tuned = load_tuned_params("lightgbm")
+    defaults = dict(
+        n_estimators=250,
+        learning_rate=0.05,
+        num_leaves=31,
+        min_child_samples=40,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        reg_alpha=1.0,
+        reg_lambda=3.0,
+    )
+    # Tuned params override matching defaults; untuned levers keep their hand-set values.
+    defaults.update(tuned)
     return Pipeline(
         steps=[
             ("preprocess", build_v2_column_preprocessor(dataset.numeric_features, dataset.categorical_features)),
             (
                 "model",
                 lgb.LGBMClassifier(
-                    n_estimators=250,
-                    learning_rate=0.05,
-                    num_leaves=31,
-                    min_child_samples=40,
-                    subsample=0.8,
-                    colsample_bytree=0.8,
-                    reg_alpha=1.0,
-                    reg_lambda=3.0,
+                    **defaults,
                     class_weight="balanced",
                     random_state=42,
                     verbose=-1,

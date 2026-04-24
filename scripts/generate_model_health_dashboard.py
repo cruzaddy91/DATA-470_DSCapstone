@@ -574,6 +574,141 @@ def _png_data_uri(path: Path) -> str:
     return f"data:image/png;base64,{b64}"
 
 
+def _model_display_title(model_key: str) -> str:
+    return model_key.replace("_", " ").title()
+
+
+def _shared_chart_categories() -> dict[str, list[tuple[str, str]]]:
+    """Curated shared gallery: problem context, temporal stress tests, then supporting evidence."""
+    return {
+        "Governance & Readiness": [
+            ("target_balance_v2_ordertime.png", "Target Balance"),
+            ("temporal_positive_rate_drift_v2_ordertime.png", "Temporal Positive Rate Drift"),
+            ("evidence_drift_performance_overlay_v2_ordertime.png", "Drift / Performance Overlay"),
+            ("evidence_temporal_snapshot_live_v2_ordertime.png", "Temporal Snapshot (Live)"),
+            ("evidence_ci_errorbars_v2_ordertime.png", "95% Bootstrap CI Error Bars"),
+            ("evidence_decision_curve_v2_ordertime.png", "Decision Curve Analysis"),
+            ("evidence_calibration_ci_v2_ordertime.png", "Calibration with Confidence Bands"),
+        ],
+        "Performance & Discrimination": [
+            ("roc_curves_temporal_v2_ordertime.png", "Temporal ROC Curves"),
+            ("pr_curves_temporal_v2_ordertime.png", "Temporal PR Curves"),
+            ("evidence_model_comparison_heatmap_live_v2_ordertime.png", "Model Comparison Heatmap (Live)"),
+            ("classification_confusion_matrices_v2_ordertime.png", "Confusion Matrices"),
+            ("score_distribution_temporal_v2_ordertime.png", "Temporal Score Distribution"),
+            ("evidence_pr_gain_v2_ordertime.png", "PR-Gain Curve"),
+            ("evidence_det_curve_v2_ordertime.png", "DET Curve"),
+            ("evidence_lift_gains_v2_ordertime.png", "Lift and Cumulative Gains"),
+            ("evidence_ks_curve_v2_ordertime.png", "KS Curve"),
+            ("evidence_precision_recall_scatter_v2_ordertime.png", "Precision-Recall Scatter by Split"),
+            ("evidence_pvalue_bootstrap_hist_v2_ordertime.png", "Bootstrap F1 Lift Distribution (p-value style)"),
+        ],
+        "Interpretability & Feature Evidence": [
+            ("classification_feature_importance_v2_ordertime.png", "Feature Importance (selected model)"),
+            ("evidence_permutation_importance_ci_v2_ordertime.png", "Permutation Importance with CI"),
+            ("evidence_pdp_ice_top3_v2_ordertime.png", "PDP + ICE (Top 3 Numeric Features)"),
+            ("evidence_brier_decomposition_v2_ordertime.png", "Brier Decomposition"),
+        ],
+    }
+
+
+def _shared_chart_filenames(categories: dict[str, list[tuple[str, str]]]) -> set[str]:
+    names: set[str] = set()
+    for charts in categories.values():
+        for fn, _t in charts:
+            names.add(fn)
+    return names
+
+
+def _per_model_chart_categories(
+    figures_dir: Path, model_keys: list[str], shared_filenames: set[str]
+) -> dict[str, dict[str, list[tuple[str, str]]]]:
+    """Per-model rasters only (avoid duplicating shared multi-model PNGs)."""
+    out: dict[str, dict[str, list[tuple[str, str]]]] = {}
+    for m in model_keys:
+        fn = f"classification_feature_importance_{m}_v2_ordertime.png"
+        if fn in shared_filenames:
+            continue
+        path = figures_dir / fn
+        if not path.is_file():
+            continue
+        cat = "Interpretability & Feature Evidence"
+        title = f"Feature importance ({_model_display_title(m)})"
+        out.setdefault(m, {}).setdefault(cat, []).append((fn, title))
+    return out
+
+
+def _html_from_chart_categories(figures_dir: Path, chart_categories: dict[str, list[tuple[str, str]]]) -> str:
+    category_sections: list[str] = []
+    for category, charts in chart_categories.items():
+        cards: list[str] = []
+        for filename, title in charts:
+            figure_path = figures_dir / filename
+            if not figure_path.is_file():
+                continue
+            cards.append(_figure_card(_png_data_uri(figure_path), title))
+        if cards:
+            category_sections.append(
+                f"<div class='category'><h3>{category}</h3><div class='grid'>{''.join(cards)}</div></div>"
+            )
+    return "\n".join(category_sections)
+
+
+def _evidence_by_model_html(
+    figures_dir: Path,
+    *,
+    all_model_names: list[str],
+    selected_name: str | None,
+    per_model: dict[str, dict[str, list[tuple[str, str]]]],
+) -> str:
+    if not per_model:
+        return ""
+    order: list[str] = []
+    if selected_name and selected_name in per_model and selected_name in all_model_names:
+        order.append(selected_name)
+    for m in all_model_names:
+        if m in per_model and m not in order:
+            order.append(m)
+    for m in sorted(per_model.keys()):
+        if m not in order:
+            order.append(m)
+    panels: list[str] = []
+    category_order = (
+        "Governance & Readiness",
+        "Performance & Discrimination",
+        "Interpretability & Feature Evidence",
+    )
+    for m in order:
+        cats = per_model.get(m) or {}
+        inner: list[str] = []
+        for cat in category_order:
+            charts = cats.get(cat) or []
+            if not charts:
+                continue
+            cards = []
+            for filename, title in charts:
+                p = figures_dir / filename
+                if p.is_file():
+                    cards.append(_figure_card(_png_data_uri(p), title))
+            if cards:
+                inner.append(f"<div class='category'><h3>{cat}</h3><div class='grid'>{''.join(cards)}</div></div>")
+        if not inner:
+            continue
+        panels.append(
+            f'<div class="per-model-block"><h2>{_model_display_title(m)}</h2>{"".join(inner)}</div>'
+        )
+    if not panels:
+        return ""
+    return (
+        '<section class="panel">'
+        "<h2>Evidence by Model</h2>"
+        "<p class='hero-sub'>Per-estimator rasters when available (e.g. feature importance). "
+        "Multi-model curves and heatmaps stay in Evidence Charts (shared) above.</p>"
+        f"{''.join(panels)}"
+        "</section>"
+    )
+
+
 def generate_dashboard(project_root: str | Path | None = None) -> Path:
     root = Path(project_root) if project_root else Path(__file__).resolve().parents[1]
     metrics_path = root / "models" / "classification_metrics_v2_ordertime.json"
@@ -596,48 +731,25 @@ def generate_dashboard(project_root: str | Path | None = None) -> Path:
     recent_weeks = recent.get("window_weeks", 24)
     all_model_names = _all_cockpit_model_names(metrics)
 
-    chart_categories = {
-        "Governance & Readiness": [
-            ("evidence_ci_errorbars_v2_ordertime.png", "95% Bootstrap CI Error Bars"),
-            ("evidence_decision_curve_v2_ordertime.png", "Decision Curve Analysis"),
-            ("evidence_calibration_ci_v2_ordertime.png", "Calibration with Confidence Bands"),
-            ("temporal_positive_rate_drift_v2_ordertime.png", "Temporal Positive Rate Drift"),
-            ("evidence_drift_performance_overlay_v2_ordertime.png", "Drift / Performance Overlay"),
-            ("target_balance_v2_ordertime.png", "Target Balance"),
-            ("evidence_temporal_snapshot_live_v2_ordertime.png", "Temporal Snapshot (Live)"),
-        ],
-        "Performance & Discrimination": [
-            ("roc_curves_temporal_v2_ordertime.png", "Temporal ROC Curves"),
-            ("pr_curves_temporal_v2_ordertime.png", "Temporal PR Curves"),
-            ("evidence_pr_gain_v2_ordertime.png", "PR-Gain Curve"),
-            ("evidence_det_curve_v2_ordertime.png", "DET Curve"),
-            ("evidence_lift_gains_v2_ordertime.png", "Lift and Cumulative Gains"),
-            ("evidence_ks_curve_v2_ordertime.png", "KS Curve"),
-            ("evidence_precision_recall_scatter_v2_ordertime.png", "Precision-Recall Scatter by Split"),
-            ("classification_confusion_matrices_v2_ordertime.png", "Confusion Matrices"),
-            ("score_distribution_temporal_v2_ordertime.png", "Temporal Score Distribution"),
-            ("evidence_model_comparison_heatmap_live_v2_ordertime.png", "Model Comparison Heatmap (Live)"),
-            ("evidence_pvalue_bootstrap_hist_v2_ordertime.png", "Bootstrap F1 Lift Distribution (p-value style)"),
-        ],
-        "Interpretability & Feature Evidence": [
-            ("classification_feature_importance_v2_ordertime.png", "Feature Importance"),
-            ("evidence_permutation_importance_ci_v2_ordertime.png", "Permutation Importance with CI"),
-            ("evidence_pdp_ice_top3_v2_ordertime.png", "PDP + ICE (Top 3 Numeric Features)"),
-            ("evidence_brier_decomposition_v2_ordertime.png", "Brier Decomposition"),
-        ],
-    }
     figures_dir = root / "output" / "figures"
-    category_sections: list[str] = []
-    for category, charts in chart_categories.items():
-        cards: list[str] = []
-        for filename, title in charts:
-            figure_path = figures_dir / filename
-            if not figure_path.exists():
-                continue
-            cards.append(_figure_card(_png_data_uri(figure_path), title))
-        if cards:
-            category_sections.append(f"<div class='category'><h3>{category}</h3><div class='grid'>{''.join(cards)}</div></div>")
-    chart_html = "\n".join(category_sections)
+    shared_categories = _shared_chart_categories()
+    chart_html = _html_from_chart_categories(figures_dir, shared_categories)
+    shared_fn = _shared_chart_filenames(shared_categories)
+    per_model_cats = _per_model_chart_categories(figures_dir, all_model_names, shared_fn)
+    by_model_html = _evidence_by_model_html(
+        figures_dir,
+        all_model_names=all_model_names,
+        selected_name=selected_name,
+        per_model=per_model_cats,
+    )
+    if not by_model_html.strip():
+        by_model_html = (
+            '<section class="panel"><h2>Evidence by Model</h2>'
+            "<p class='hero-sub'>No per-estimator-only chart files on disk yet. After "
+            "<code>scripts/run_modeling.py</code>, expect "
+            "<code>classification_feature_importance_&lt;model&gt;_v2_ordertime.png</code> "
+            "under <code>output/figures/</code> for each fitted non-ensemble pipeline.</p></section>"
+        )
 
     gen_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     html = f"""<!doctype html>
@@ -765,7 +877,7 @@ def generate_dashboard(project_root: str | Path | None = None) -> Path:
       <div class="meta-row">
         <div class="meta">
           <span>Toggle affects metric sections only.</span>
-          <span>Evidence charts remain unchanged.</span>
+          <span>Evidence charts: shared gallery plus per-model rasters when generated.</span>
         </div>
       </div>
     </div>
@@ -811,9 +923,10 @@ def generate_dashboard(project_root: str | Path | None = None) -> Path:
     </section>
 
     <section class="panel">
-      <h2>Evidence Charts</h2>
+      <h2>Evidence Charts (shared)</h2>
       {chart_html if chart_html else "<div class='card'>No chart artifacts found.</div>"}
     </section>
+    {by_model_html}
   </div>
   <script>
     (function() {{

@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Regenerate poster PNGs (when inputs exist) + PowerPoint + font check.
 #
+# Byte identity note: a byte-for-byte clone of a hand deck is only guaranteed by
+#   python scripts/poster_replicate_byte_identical.py (plain file copy).
+# build_poster.py uses python-pptx + zip media overlay; OOXML bytes will differ from FINAL
+# even when layout and fonts match. Truth layout is preserved by cloning FINAL then swapping
+# rasters and applying poster_deck_text run text.
+#
 # Dependency order (each step consumes outputs of the prior):
 #   1. build_canonical_poster_visual_spec.py — YAML from master CSV, comparison table, temporal JSON
 #   2. render_poster_visuals_from_canonical_spec.py — matplotlib PNGs into output/figures/
@@ -77,20 +83,27 @@ bash "$ROOT/scripts/render_poster_diagrams.sh"
 echo "== PowerPoint (truth clone + deterministic media overlay) =="
 "$PY" scripts/build_poster_truth_overlay.py
 
+echo "== Apply poster_deck_text + final media package (writes DS_Capstone_Poster_FULL_RENDER.pptx by default) =="
+POSTER_FACT_PPTX="$ROOT/DS_Capstone_Poster_FINAL_SCRIPT_COPY.pptx" \
+POSTER_PPTX_OUTPUT="$ROOT/DS_Capstone_Poster_FULL_RENDER.pptx" \
+"$PPT_PY" build_poster.py
+
+export POSTER_PPTX_OUTPUT="$ROOT/DS_Capstone_Poster_FULL_RENDER.pptx"
+
 echo "== Poster manifest + PosterCraft input bundle (JSON/YAML from model outputs) =="
 "$PY" scripts/generate_poster_visual_manifest.py
 "$PY" scripts/export_postercraft_poster_inputs.py
 
-echo "== Font guardrail =="
+echo "== Font guardrail (FULL_RENDER) =="
 "$PPT_PY" scripts/verify_poster_fonts.py
 
-echo "== Layout guardrail (heading vs body boxes) =="
+echo "== Layout guardrail (heading vs body boxes; FULL_RENDER) =="
 # Fact FINAL OOXML may use spacing tighter than HEAD_BODY_GAP_EMU; overlay preserves that layout.
 if ! "$PPT_PY" scripts/verify_poster_layout.py; then
   echo "  warning: layout verify exited non-zero (often OK for truth-cloned decks)."
 fi
 
-echo "Done: $ROOT/$POSTER_PPTX_OUTPUT"
+echo "Done: overlay+deck-text → $ROOT/DS_Capstone_Poster_FULL_RENDER.pptx (media-only clone: $ROOT/DS_Capstone_Poster_FINAL_SCRIPT_COPY.pptx)"
 
 # Open the deck on macOS after a successful build (set OPEN_POSTER_AFTER_BUILD=0 to skip).
 if [[ "${OPEN_POSTER_AFTER_BUILD:-1}" == "1" ]] && command -v open >/dev/null 2>&1; then

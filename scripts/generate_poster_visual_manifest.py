@@ -102,7 +102,7 @@ def _confusion_summary() -> dict:
             "baseline_positive_rate": float(payload.get("baseline_positive_rate", y_true.mean())),
             "models": {},
         }
-        for name in ("logistic_regression", "lightgbm"):
+        for name in ("logistic_regression", "xgboost", "oof_calibrated_stack"):
             m = payload.get("models", {}).get(name)
             if not m:
                 continue
@@ -170,7 +170,7 @@ def build_manifest_dict() -> dict:
         },
         {
             "id": "showcase_model_comparison_heatmap",
-            "role_on_poster": "Center: ROC-AUC / PR-AUC grids (Logistic vs LightGBM)",
+            "role_on_poster": "Center: ROC-AUC / PR-AUC grids (Logistic vs XGBoost vs Stack)",
             "png_relative": "output/figures/showcase_model_comparison_heatmap.png",
             "generator_script": (
                 "scripts/build_canonical_poster_visual_spec.py → scripts/render_poster_visuals_from_canonical_spec.py "

@@ -27,6 +27,8 @@ SKY = "#00B5E2"  # PMS 306 C
 # ── Model / series (discriminable + on-brand) ─────────────────────────────────
 COLOR_LOGISTIC = NIGHT  # baseline = primary brand
 COLOR_LIGHTGBM = COPPER  # benchmark = copper
+COLOR_XGBOOST = SKY  # second tree benchmark (discriminable on white)
+COLOR_CATBOOST = THISTLE  # GBDT line in multi-model temporal overlays
 COLOR_BASELINE = FLINT  # dashed reference (random / prevalence) — brand dark, not gray
 
 # ── Categorical bars — target balance 3-class (No / Yes / Unresolved) ───────

@@ -1,32 +1,48 @@
 %% Capstone poster — panel 2 (Westminster brand)
+%% Honest selection-process flow: Inner temporal CV selects Stack by rule;
+%% outer temporal holdout shows Logistic Regression is the deployable best.
 %%{init: {'theme': 'base', 'flowchart': {'htmlLabels': true}}}%%
 
 flowchart TB
-  subgraph V["Validation design"]
-    T[Temporal holdout<br/>train older → test later]
-    G[Grouped holdout<br/>diagnostic]
+  DATA["Training data<br/>order–time features<br/>31k+ rows · 3.4% pos."]
+
+  subgraph INNER["Inner temporal validation · SELECT HERE"]
+    direction TB
+    LR["Logistic Regression<br/><i>linear</i>"]
+    LGBM["LightGBM<br/><i>boosted tree</i>"]
+    RF["RandomForest<br/><i>bagged tree</i>"]
+    KNN["kNN<br/><i>instance–based</i>"]
+    STACK["Stack · OOF–calibrated<br/><i>LR + LightGBM + RF + kNN</i>"]
+    RANK{{"Rank by PR–AUC<br/>(temporal folds)"}}
+    LR --> RANK
+    LGBM --> RANK
+    RF --> RANK
+    KNN --> RANK
+    STACK --> RANK
   end
 
-  subgraph M["Models"]
-    LR[Logistic regression]
-    LGB[LightGBM]
-  end
+  GATE{{"Deploy gate<br/>precision floor 0.15<br/>recall floor 0.35"}}
+  HOLDOUT["Outer temporal holdout · REPORT ONCE<br/>LR: ROC 0.910 · PR 0.358 · F1 0.511<br/>Stack: ROC 0.936 · PR 0.326 · F1 0.420"]
+  MATURITY{{"Label maturity gate<br/>last 180 days:<br/>36% coverage, 32 positives<br/>FAILS (dataset, not model)"}}
 
-  subgraph O["Outputs"]
-    MET[PR-AUC · ROC-AUC<br/>F1 · precision · recall]
-  end
+  DATA --> INNER
+  RANK -->|"rule–selected: Stack<br/>deployable best: LR"| GATE
+  GATE -->|"model gates PASS"| HOLDOUT
+  HOLDOUT --> MATURITY
 
-  T --> LR
-  T --> LGB
-  G --> LR
-  G --> LGB
-  LR --> MET
-  LGB --> MET
+  %% Westminster brand: Night #211551, Copper #9D581F, Thistle #8252C7, Sky #00B5E2, Birch #F1F1DE, Flint #101820, Snow #FFFFFF
+  classDef src fill:#F1F1DE,stroke:#211551,color:#101820,stroke-width:2px
+  classDef cand fill:#FFFFFF,stroke:#8252C7,color:#101820
+  classDef winner fill:#9D581F,stroke:#101820,color:#FFFFFF,stroke-width:3px
+  classDef deployable fill:#00B5E2,stroke:#101820,color:#FFFFFF,stroke-width:3px
+  classDef decision fill:#E0F7FC,stroke:#00B5E2,color:#101820
+  classDef report fill:#F1F1DE,stroke:#00B5E2,color:#101820,stroke-width:2px
+  classDef block fill:#FFE0E0,stroke:#A03030,color:#101820,stroke-width:2px
 
-  classDef pipeline fill:#F1F1DE,stroke:#211551,color:#101820
-  classDef process fill:#FFFFFF,stroke:#8252C7,color:#101820
-  classDef reporting fill:#E0F7FC,stroke:#00B5E2,color:#101820
-
-  class T,G pipeline
-  class LR,LGB process
-  class MET reporting
+  class DATA src
+  class LGBM,RF,KNN cand
+  class STACK winner
+  class LR deployable
+  class RANK,GATE decision
+  class HOLDOUT report
+  class MATURITY block

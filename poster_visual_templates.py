@@ -26,8 +26,10 @@ from westminster_poster_palette import (
     BAR_INV_NO,
     BAR_INV_YES,
     COLOR_BASELINE,
+    COLOR_CATBOOST,
     COLOR_LIGHTGBM,
     COLOR_LOGISTIC,
+    COLOR_XGBOOST,
     EDGE_SUBTLE,
     FLINT,
     SNOW,
@@ -134,7 +136,7 @@ def render_model_comparison_heatmap(spec: dict, root: Path) -> Path | None:
 
     fig, axes = plt.subplots(1, 2, figsize=(18, 7.2))
     fig.suptitle(
-        "Logistic vs. LightGBM — ranking metrics under stress splits (template render)",
+        "Logistic vs. XGBoost vs. CatBoost — ranking metrics under stress splits (template render)",
         fontsize=20,
         fontweight="bold",
         y=0.99,
@@ -189,7 +191,7 @@ def render_model_comparison_heatmap(spec: dict, root: Path) -> Path | None:
                     f"{val:.2f}",
                     ha="center",
                     va="center",
-                    fontsize=26,
+                    fontsize=22,
                     fontweight="bold",
                     color=tc,
                 )
@@ -233,7 +235,7 @@ def render_model_comparison_heatmap(spec: dict, root: Path) -> Path | None:
         0.5,
         0.02,
         "Values from canonical_poster_visual_spec.yaml (classification_model_comparison_v2_ordertime.csv). "
-        "Night outline = best in column.",
+        "Night outline = best in column. Poster trio: LR, XGBoost, CatBoost.",
         ha="center",
         va="bottom",
         fontsize=12,
@@ -278,6 +280,8 @@ def render_temporal_figures(spec: dict, root: Path) -> dict[str, Path]:
     )
     for name, color, label_short in (
         ("logistic_regression", COLOR_LOGISTIC, "Logistic"),
+        ("xgboost", COLOR_XGBOOST, "XGBoost"),
+        ("catboost", COLOR_CATBOOST, "CatBoost"),
         ("lightgbm", COLOR_LIGHTGBM, "LightGBM"),
     ):
         if name not in models:
@@ -311,6 +315,8 @@ def render_temporal_figures(spec: dict, root: Path) -> dict[str, Path]:
     )
     for name, color, label_short in (
         ("logistic_regression", COLOR_LOGISTIC, "Logistic"),
+        ("xgboost", COLOR_XGBOOST, "XGBoost"),
+        ("catboost", COLOR_CATBOOST, "CatBoost"),
         ("lightgbm", COLOR_LIGHTGBM, "LightGBM"),
     ):
         if name not in models:
