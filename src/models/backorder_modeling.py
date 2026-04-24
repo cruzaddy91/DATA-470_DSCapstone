@@ -104,6 +104,8 @@ MODEL_FILE_MAP = {
     "lightgbm": f"backorder_lightgbm{ARTIFACT_SUFFIX}.joblib",
     "xgboost": f"backorder_xgboost{ARTIFACT_SUFFIX}.joblib",
     "catboost": f"backorder_catboost{ARTIFACT_SUFFIX}.joblib",
+    "random_forest": f"backorder_random_forest{ARTIFACT_SUFFIX}.joblib",
+    "knn": f"backorder_knn{ARTIFACT_SUFFIX}.joblib",
     "soft_vote_lr_lightgbm": f"backorder_soft_vote_lr_lightgbm{ARTIFACT_SUFFIX}.joblib",
     "oof_calibrated_stack": f"backorder_oof_calibrated_stack{ARTIFACT_SUFFIX}.joblib",
 }

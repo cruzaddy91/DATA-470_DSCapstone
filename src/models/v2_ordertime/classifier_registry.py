@@ -15,8 +15,10 @@ import pandas as pd
 from sklearn.pipeline import Pipeline
 
 from .pipeline_catboost import build_v2_catboost_pipeline
+from .pipeline_knn import build_v2_knn_pipeline
 from .pipeline_lightgbm import build_v2_lightgbm_pipeline
 from .pipeline_logistic import build_v2_logistic_regression_pipeline
+from .pipeline_random_forest import build_v2_random_forest_pipeline
 from .pipeline_xgboost import build_v2_xgboost_pipeline
 
 
@@ -38,8 +40,11 @@ def build_all_v2_binary_classifiers(dataset: Any, y_train: pd.Series) -> dict[st
     lgb_pipe = build_v2_lightgbm_pipeline(dataset)
     if lgb_pipe is not None:
         models["lightgbm"] = lgb_pipe
-    # Keep the default path stable and honest around the best temporal iteration.
-    # Extra learners stay available for explicit experiments only.
+    # RandomForest + kNN provide non-GBDT model-family diversity for the OOF-calibrated stack.
+    models["random_forest"] = build_v2_random_forest_pipeline(dataset)
+    models["knn"] = build_v2_knn_pipeline(dataset)
+    # XGBoost and CatBoost stay available for the full comparison table under an env flag;
+    # they are highly correlated with LightGBM and are not part of the default stack.
     if os.environ.get("MODEL_ENABLE_EXTRA_MODELS", "0") == "1":
         xgb_pipe = build_v2_xgboost_pipeline(dataset, y_train)
         if xgb_pipe is not None:
