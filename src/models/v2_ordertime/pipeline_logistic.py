@@ -14,6 +14,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler
 
 from .preprocessing import build_v2_column_preprocessor
+from .tuned_params import load_tuned_params
 
 
 def build_v2_logistic_regression_pipeline(dataset: Any) -> Pipeline:
@@ -26,6 +27,7 @@ def build_v2_logistic_regression_pipeline(dataset: Any) -> Pipeline:
         PreparedDataset (or equivalent) with ``numeric_features`` and
         ``categorical_features``.
     """
+    tuned = load_tuned_params("logistic_regression")
     return Pipeline(
         steps=[
             ("preprocess", build_v2_column_preprocessor(dataset.numeric_features, dataset.categorical_features)),
@@ -33,8 +35,10 @@ def build_v2_logistic_regression_pipeline(dataset: Any) -> Pipeline:
             (
                 "model",
                 LogisticRegression(
+                    C=tuned.get("C", 1.0),
                     max_iter=2000,
                     class_weight="balanced",
+                    solver="lbfgs",
                     random_state=42,
                 ),
             ),

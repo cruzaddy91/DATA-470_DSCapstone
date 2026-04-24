@@ -15,19 +15,25 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import Pipeline
 
 from .preprocessing import build_v2_column_preprocessor
+from .tuned_params import load_tuned_params
 
 
 def build_v2_random_forest_pipeline(dataset: Any) -> Pipeline:
+    tuned = load_tuned_params("random_forest")
+    defaults = dict(
+        n_estimators=400,
+        max_depth=None,
+        min_samples_leaf=5,
+        max_features="sqrt",
+    )
+    defaults.update(tuned)
     return Pipeline(
         steps=[
             ("preprocess", build_v2_column_preprocessor(dataset.numeric_features, dataset.categorical_features)),
             (
                 "model",
                 RandomForestClassifier(
-                    n_estimators=400,
-                    max_depth=None,
-                    min_samples_leaf=5,
-                    max_features="sqrt",
+                    **defaults,
                     class_weight="balanced_subsample",
                     n_jobs=int(os.environ.get("MODEL_N_JOBS", "4")),
                     random_state=42,
