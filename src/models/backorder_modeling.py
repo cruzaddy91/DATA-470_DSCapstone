@@ -526,17 +526,26 @@ def prepare_backorder_dataset(project_root: str | Path | None = None) -> Prepare
     # present in the loaded table. NaNs (first-observation-per-cohort rows) get
     # imputed with the column median on the fly — neutral prior, not 0 which
     # would bias downward given non-zero base rate.
-    _rollup_columns = [
+    # Target-dependent rollups (backorder_rate_90d) inherit label maturity bias in
+    # the training tail; gate them separately and default them OFF.
+    _rollup_target_dependent = [
         "plant_backorder_rate_90d",
         "material_backorder_rate_90d",
         "customer_backorder_rate_90d",
+    ]
+    _rollup_target_independent = [
         "plant_order_volume_30d",
         "material_order_volume_30d",
         "customer_order_volume_30d",
         "plant_confirmation_rate_90d",
     ]
-    if os.environ.get("MODEL_ENABLE_ROLLUP_FEATURES", "0") == "1":
-        for col in _rollup_columns:
+    rollup_on = os.environ.get("MODEL_ENABLE_ROLLUP_FEATURES", "0") == "1"
+    include_target_dep = os.environ.get("MODEL_ROLLUP_INCLUDE_TARGET_DEP", "0") == "1"
+    if rollup_on:
+        cols = list(_rollup_target_independent)
+        if include_target_dep:
+            cols += _rollup_target_dependent
+        for col in cols:
             if col in order.columns:
                 ser = pd.to_numeric(order[col], errors="coerce")
                 median_val = float(ser.median()) if ser.notna().any() else 0.0
