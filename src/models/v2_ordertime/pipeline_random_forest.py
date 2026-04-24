@@ -8,6 +8,7 @@ that makes different mistakes than GBDTs.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from sklearn.ensemble import RandomForestClassifier
@@ -28,7 +29,7 @@ def build_v2_random_forest_pipeline(dataset: Any) -> Pipeline:
                     min_samples_leaf=5,
                     max_features="sqrt",
                     class_weight="balanced_subsample",
-                    n_jobs=-1,
+                    n_jobs=int(os.environ.get("MODEL_N_JOBS", "4")),
                     random_state=42,
                 ),
             ),

@@ -11,6 +11,7 @@ closer training neighbors dominate the prediction.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from sklearn.neighbors import KNeighborsClassifier
@@ -31,7 +32,7 @@ def build_v2_knn_pipeline(dataset: Any) -> Pipeline:
                     n_neighbors=25,
                     weights="distance",
                     algorithm="auto",
-                    n_jobs=-1,
+                    n_jobs=int(os.environ.get("MODEL_N_JOBS", "4")),
                 ),
             ),
         ]

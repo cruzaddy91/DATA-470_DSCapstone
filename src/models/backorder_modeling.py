@@ -230,20 +230,18 @@ def _stack_oof_probability_matrix(
 
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     for tr_idx, va_idx in skf.split(X_train, y_train_arr):
+        # SMOTE removed from OOF fold fits so the meta-LR learns a mapping that matches
+        # the test-time stack (final refit also runs on raw training data). Class imbalance
+        # is handled at each base learner via class_weight / scale_pos_weight.
         X_tr_raw = X_train.iloc[tr_idx]
         y_tr_raw = y_train_arr[tr_idx]
         fold_weight = build_training_sample_weights(
             y_tr_raw,
             train_dates=train_dates.iloc[tr_idx],
         )
-        n_b = len(X_tr_raw)
-        X_tr_sm, y_tr_sm = maybe_smote_resample_training(
-            X_tr_raw, y_tr_raw, list(dataset.categorical_features)
-        )
-        fold_weight = extend_sample_weight_after_smote(fold_weight, n_b, len(X_tr_sm))
         for j, model_name in enumerate(base_names):
             pipe = clone(base_templates[model_name])
-            fit_pipeline_maybe_weighted(pipe, X_tr_sm, y_tr_sm, fold_weight)
+            fit_pipeline_maybe_weighted(pipe, X_tr_raw, y_tr_raw, fold_weight)
             oof[va_idx, j] = pipe.predict_proba(X_train.iloc[va_idx])[:, 1]
     return oof, n_splits
 
@@ -1157,12 +1155,12 @@ def _evaluate_models(
             # stack's temporal holdout metrics.
             p_stack_oof = meta_model.predict_proba(oof)[:, 1]
             precision_floor = float(os.environ.get("MODEL_PRECISION_FLOOR", "0.35"))
-            guard = max(1, int(np.ceil((y_train_arr == 1).sum() * 0.5 * (len(y_test) / max(len(y_train_arr), 1)))))
+            guard = max(1, int(np.ceil((y_train_arr == 1).sum() * 0.5)))
             threshold, objective = select_threshold_with_precision_floor(
                 y_train_arr,
                 p_stack_oof,
                 precision_floor=precision_floor,
-                min_predicted_positives=max(1, guard),
+                min_predicted_positives=guard,
             )
             y_pred = (p_stack >= threshold).astype(int)
             stack_metrics = compute_classification_metrics(y_test, y_pred, p_stack)
