@@ -36,3 +36,4 @@ DS_Capstone_Poster_FULL_RENDER.pptx
 data/processed/master_order_fulfillment_modeling_snapshot_backorder.csv
 data/processed/int_snapshot_backorder_derived.csv
 data/processed/stg_snapshot_backorder_line.csv
+logs/
