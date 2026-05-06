@@ -38,10 +38,26 @@
 \newcommand{\figref}[1]{\textcolor{wuCopper}{Figure~\ref*{#1}}}
 \newcommand{\tabref}[1]{\textcolor{wuNight}{Table~\ref*{#1}}}
 
-% Force floats to land where the source places them (fixes drift across pages).
+% Anchor narrow single-column floats inline with [H]; wide column-spanning
+% floats use figure*/table* with explicit [!tbp] in the source.
+% NOTE: \floatplacement{table}{H} would silently drop table* in two-column
+% mode (the [H] modifier is incompatible with starred floats and overrides
+% even explicit [!tbp]). Anchor narrow tables with [H] in the source instead.
 \usepackage{float}
 \floatplacement{figure}{H}
-\floatplacement{table}{H}
+
+% Two-column float behavior fix: dblfloatfix
+%   - Allows figure*/table* to land at the BOTTOM of a page (default LaTeX
+%     only allows top), giving 2x placement slots.
+%   - Fixes the well-known kernel bug where queued two-column floats appear
+%     in the wrong order across pages.
+% (stfloats does the bottom-placement piece but conflicts with dblfloatfix
+% on \dblbotnumber, so we use dblfloatfix alone — it covers both cases.)
+\usepackage{dblfloatfix}
+
+% Generous fractions so wide floats are not bumped for needing too much space.
+\renewcommand{\dbltopfraction}{0.92}
+\renewcommand{\dblfloatpagefraction}{0.65}
 
 % Allow long monospace paths (e.g. file paths inside `\texttt{}`) to break across
 % lines instead of running past the right margin.
