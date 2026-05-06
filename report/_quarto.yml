@@ -1,0 +1,40 @@
+project:
+  type: default
+  output-dir: output
+
+bibliography: references.bib
+number-sections: false
+toc: false
+
+format:
+  pdf:
+    documentclass: scrartcl
+    classoption:
+      - twoside=false
+      - DIV=14
+    pdf-engine: xelatex
+    fontsize: 10pt
+    linestretch: 1.12
+    mainfont: "Times New Roman"
+    sansfont: "Helvetica Neue"
+    monofont: "Menlo"
+    geometry:
+      - paperwidth=8.5in
+      - paperheight=11in
+      - top=0.85in
+      - bottom=0.85in
+      - left=0.75in
+      - right=0.75in
+      - columnsep=0.32in
+    include-in-header:
+      - westminster-colors.tex
+    include-before-body:
+      - titlepage.tex
+    fig-pos: H
+    fig-cap-location: bottom
+    tbl-cap-location: top
+
+  docx:
+    toc: false
+    fig-cap-location: bottom
+    tbl-cap-location: top

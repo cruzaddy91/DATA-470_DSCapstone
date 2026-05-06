@@ -1,0 +1,82 @@
+% =====================================================================
+%  Custom academic cover page
+%  Westminster brand colors.
+% =====================================================================
+\thispagestyle{empty}
+
+\begingroup
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+\centering
+
+\vspace*{0.7in}
+
+% ---- Institution mark ----------------------------------------------
+{\fontsize{12}{14}\selectfont
+ \color{wuFlint}\textsc{Westminster University}\par}
+\vspace{2pt}
+{\fontsize{10}{12}\selectfont\itshape
+ \color{wuFlint}School of Arts \& Sciences \, \textbar \, Salt Lake City\par}
+
+\vspace{0.30in}
+{\color{wuCopper}\rule{1.6in}{0.6pt}}
+
+\vspace{1.20in}
+
+% ---- Title block ---------------------------------------------------
+{\fontsize{30}{36}\bfseries\selectfont
+ \color{wuNight}Backorder Risk for SAP Order Lines\par}
+
+\vspace{0.18in}
+{\color{wuCopper}\rule{4.0in}{0.4pt}}
+\vspace{0.18in}
+
+{\fontsize{15}{20}\itshape\selectfont
+ Order-Time Classification \\[2pt] and Honest Temporal Evaluation\par}
+
+\vspace{0.95in}
+
+% ---- Submission statement ------------------------------------------
+{\fontsize{11}{14}\selectfont
+ \color{wuFlint}A capstone report submitted in partial fulfillment\\
+ of the requirements for \textsc{DATA 470: Data Science Capstone}\par}
+
+\vspace{0.40in}
+
+% ---- Author block --------------------------------------------------
+{\fontsize{16}{20}\bfseries\selectfont Addy Cruz\par}
+\vspace{4pt}
+{\fontsize{10.5}{13}\itshape\selectfont
+ \color{wuFlint}Department of Mathematics and Computer Science\par}
+
+\vspace{0.28in}
+
+{\fontsize{10.5}{13}\selectfont
+ \color{wuFlint}\textit{Faculty Advisor}\par}
+\vspace{2pt}
+{\fontsize{12}{15}\selectfont Dr.\ Liang Jingsai\par}
+
+\vfill
+
+% ---- Footer rule + date --------------------------------------------
+{\color{wuCopper}\rule{1.6in}{0.6pt}}
+\vspace{0.16in}
+
+{\fontsize{11}{13}\selectfont
+ \color{wuFlint}May 2026\par}
+
+\vspace{0.45in}
+\endgroup
+
+\clearpage
+
+% After the title page, register a faint Westminster logo watermark
+% on every subsequent page. eso-pic's BG hook puts it behind text;
+% TikZ handles the opacity so the body stays fully legible.
+\AddToShipoutPictureBG{%
+  \put(\LenToUnit{6.95in},\LenToUnit{0.35in}){%
+    \tikz\node[opacity=0.12, inner sep=0]{%
+      \includegraphics[width=1.30in]{../assets/png/WU_Logo_Horz_Copper-2000x323-2602323276.png}%
+    };%
+  }%
+}

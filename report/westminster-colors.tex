@@ -1,0 +1,57 @@
+% Westminster University brand palette (matches westminster_poster_palette.py)
+\usepackage{xcolor}
+\definecolor{wuNight}{HTML}{211551}
+\definecolor{wuCopper}{HTML}{9D581F}
+\definecolor{wuSky}{HTML}{00B5E2}
+\definecolor{wuThistle}{HTML}{8252C7}
+\definecolor{wuFlint}{HTML}{101820}
+\definecolor{wuBirch}{HTML}{F1F1DE}
+
+% Section heading hierarchy: explicit size differential between # and ##
+% \LARGE (~17pt) for sections, \large (~11pt) for subsections — 6pt gap reads clearly.
+\usepackage{titlesec}
+\titleformat{\section}{\normalfont\LARGE\bfseries\color{wuNight}\raggedright}{\thesection}{1em}{}
+\titlespacing*{\section}{0pt}{1.4ex plus 0.4ex minus 0.2ex}{0.7ex plus 0.2ex}
+\titleformat{\subsection}{\normalfont\large\bfseries\color{wuNight}}{\thesubsection}{1em}{}
+\titlespacing*{\subsection}{0pt}{1.0ex plus 0.3ex minus 0.2ex}{0.5ex plus 0.2ex}
+
+% Suppress auto \maketitle block; titlepage.tex provides our custom cover page
+\let\maketitle\relax
+
+% Absolute-position image overlays (used for logo on references page)
+\usepackage{eso-pic}
+\usepackage{graphicx}
+\usepackage{tikz}
+
+% Hyperlink color: Thistle
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=wuThistle, urlcolor=wuSky, citecolor=wuCopper}
+
+% Caption styling — per-type label color so Figure vs Table partition visually.
+% Figures: warm wuCopper. Tables: deep wuNight. Caption body stays default text.
+\usepackage[font=small]{caption}
+\captionsetup[figure]{labelfont={bf,color=wuCopper}}
+\captionsetup[table]{labelfont={bf,color=wuNight}}
+
+% Inline cross-reference helpers carry the same color map into running text.
+% Use \figref{label} and \tabref{label} instead of Figure~\ref{label} / Table~\ref{label}.
+\newcommand{\figref}[1]{\textcolor{wuCopper}{Figure~\ref*{#1}}}
+\newcommand{\tabref}[1]{\textcolor{wuNight}{Table~\ref*{#1}}}
+
+% Force floats to land where the source places them (fixes drift across pages).
+\usepackage{float}
+\floatplacement{figure}{H}
+\floatplacement{table}{H}
+
+% Allow long monospace paths (e.g. file paths inside `\texttt{}`) to break across
+% lines instead of running past the right margin.
+\usepackage{seqsplit}
+\let\origtexttt\texttt
+\renewcommand{\texttt}[1]{\origtexttt{\seqsplit{#1}}}
+
+% Generous fractions for the rare cases LaTeX still has to float.
+\renewcommand{\topfraction}{0.92}
+\renewcommand{\dbltopfraction}{0.92}
+\renewcommand{\textfraction}{0.08}
+\renewcommand{\floatpagefraction}{0.75}
+\renewcommand{\dblfloatpagefraction}{0.75}
