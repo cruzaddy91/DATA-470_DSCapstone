@@ -55,7 +55,9 @@ The selection rule is fixed before any holdout score is examined. The champion i
 
 ## Hyperparameter tuning
 
-\begin{table*}
+Tunable learners are tuned with a multi-phase grid search over a temporal expanding-window split (three folds, PR-AUC objective) on the training rows only. The search never sees the outer holdout. Selected configurations (\tabref{tbl-hparams}) are persisted in `models/hyperparameters_tuned_v2_ordertime.json` and read by the pipeline at fit time, so results are reproducible without manual re-entry. kNN is left untuned because its performance is dominated by feature-space geometry rather than by hyperparameter shape on this data.
+
+\begin{table}
 \centering
 \small
 \begin{tabular}{lp{0.55\textwidth}r}
@@ -69,9 +71,7 @@ LightGBM & \texttt{learning\_rate} 0.03, \texttt{n\_estimators} 200, \texttt{num
 \end{tabular}
 \caption{Tuned configurations for the stack's tunable base learners. Inner PR-AUC is the mean across three temporal expanding-window folds on the training set; the outer holdout is never used for tuning. Source path is in the running text above.}
 \label{tbl-hparams}
-\end{table*}
-
-Tunable learners are tuned with a multi-phase grid search over a temporal expanding-window split (three folds, PR-AUC objective) on the training rows only. The search never sees the outer holdout. Selected configurations (\tabref{tbl-hparams}) are persisted in `models/hyperparameters_tuned_v2_ordertime.json` and read by the pipeline at fit time, so results are reproducible without manual re-entry. kNN is left untuned because its performance is dominated by feature-space geometry rather than by hyperparameter shape on this data.
+\end{table}
 
 ## Notation
 
@@ -94,7 +94,9 @@ Standard rare-event classification metrics are reported: ROC-AUC, PR-AUC, precis
 
 ## Headline outcomes on temporal holdout
 
-\begin{table*}
+\tabref{tbl-leaderboard} summarizes the four headline learners on the outer temporal holdout (6,521 rows, 58 confirmed positives). The stack is the rule-selected champion. Logistic regression is the strongest deployable single model. The two together describe the data: the separating signal is largely linear, and ensembling adds discrimination at the cost of recall under the precision-floor objective.
+
+\begin{table}
 \centering
 \small
 \begin{tabular}{lrrrrr}
@@ -109,19 +111,17 @@ XGBoost & 0.825 & 0.194 & 0.157 & 0.517 & 0.241 \\
 \end{tabular}
 \caption{Outer temporal-holdout metrics for the headline models, scored at the frozen OOF threshold from inner-temporal selection. ROC and PR refer to ROC-AUC and PR-AUC. Random-classifier PR-AUC for this prevalence is approximately 0.009; logistic regression's PR-AUC of 0.358 is roughly a 40-fold lift over random.}
 \label{tbl-leaderboard}
-\end{table*}
-
-\tabref{tbl-leaderboard} summarizes the four headline learners on the outer temporal holdout (6,521 rows, 58 confirmed positives). The stack is the rule-selected champion. Logistic regression is the strongest deployable single model. The two together describe the data: the separating signal is largely linear, and ensembling adds discrimination at the cost of recall under the precision-floor objective.
-
-\begin{figure*}[!tbp]
-\centering
-\includegraphics[width=0.49\textwidth]{../output/figures/roc_curves_temporal_v2_ordertime.png}\hfill
-\includegraphics[width=0.49\textwidth]{../output/figures/pr_curves_temporal_v2_ordertime.png}
-\caption{\textbf{Discrimination on the temporal holdout.} Left: ROC curves; the stack reaches AUC 0.94 and logistic regression 0.91, with tree-only baselines trailing. Right: precision-recall curves; logistic regression leads under prevalence-aware ranking with PR-AUC 0.36, the stack 0.33.}
-\label{fig-roc-pr}
-\end{figure*}
+\end{table}
 
 The discrimination story (\figref{fig-roc-pr}) is consistent across both ranking views. The stack reaches the highest ROC-AUC on the temporal holdout, and logistic regression reaches the highest PR-AUC, which is the metric that matters more under a 3 percent positive prevalence.
+
+\begin{figure}
+\centering
+\includegraphics[width=0.49\columnwidth]{../output/figures/roc_curves_temporal_v2_ordertime.png}\hfill
+\includegraphics[width=0.49\columnwidth]{../output/figures/pr_curves_temporal_v2_ordertime.png}
+\caption{\textbf{Discrimination on the temporal holdout.} Left: ROC curves; the stack reaches AUC 0.94 and logistic regression 0.91, with tree-only baselines trailing. Right: precision-recall curves; logistic regression leads under prevalence-aware ranking with PR-AUC 0.36, the stack 0.33.}
+\label{fig-roc-pr}
+\end{figure}
 
 ## Decision behavior at the operating threshold
 
@@ -136,25 +136,25 @@ The discrimination story (\figref{fig-roc-pr}) is consistent across both ranking
 
 ## Cost-sensitive operating curves
 
-\begin{figure*}[!tbp]
+\figref{fig-utility} plots expected cost per row against decision threshold across cost ratios $k \in \{1, 3, 10, 30, 100\}$ for the four candidate models. For realistic supply-chain asymmetry ($k$ between 3 and 30), the recall-maximization-at-precision-floor threshold for logistic regression also minimizes expected cost [@vickers2006decision]. Only at $k \ge 100$ (line-stop criticality) does the recommended threshold drop further, trading roughly five percentage points of precision for fifteen percentage points of recall.
+
+\begin{figure}
 \centering
-\includegraphics[width=\textwidth]{../output/figures/business_utility_curves.png}
+\includegraphics[width=\columnwidth]{../output/figures/business_utility_curves.png}
 \caption{\textbf{Business-utility curves: expected cost per row vs decision threshold} across asymmetric cost ratios $k = c_{\mathrm{miss}}/c_{\mathrm{false\ alarm}}$. The recommended operating point (filled dot) is robust for $k \in [3, 30]$.}
 \label{fig-utility}
-\end{figure*}
-
-\figref{fig-utility} plots expected cost per row against decision threshold across cost ratios $k \in \{1, 3, 10, 30, 100\}$ for the four candidate models. For realistic supply-chain asymmetry ($k$ between 3 and 30), the recall-maximization-at-precision-floor threshold for logistic regression also minimizes expected cost [@vickers2006decision]. Only at $k \ge 100$ (line-stop criticality) does the recommended threshold drop further, trading roughly five percentage points of precision for fifteen percentage points of recall.
+\end{figure}
 
 ## What the lift means in operations
 
-\begin{figure*}[!tbp]
+Discrimination metrics are persuasive on a slide; their operational reading is what convinces a planner. \figref{fig-lift} translates the model into the way fulfillment teams actually triage. A reviewer who works the top 5 percent of incoming order lines, sorted by model score, captures roughly 80 percent of the orders that will eventually backorder; at the top 10 percent the curve is essentially saturated. The accompanying lift curve peaks above 100x at the head of the score distribution, meaning a planner queuing the highest-risk lines is more than 100 times as likely to find a real backorder as one chosen at random. The model is not replacing human review; it is giving the review queue a defensible order.
+
+\begin{figure}
 \centering
-\includegraphics[width=\textwidth]{../output/figures/evidence_lift_gains_v2_ordertime.png}
+\includegraphics[width=\columnwidth]{../output/figures/evidence_lift_gains_v2_ordertime.png}
 \caption{\textbf{Cumulative gains and lift on the temporal holdout.} Left: cumulative gains; the top 5 percent of scored lines contains roughly 80 percent of the period's confirmed backorders. Right: lift curve; peak lift exceeds 100x at the head of the score distribution and decays smoothly as the review queue grows.}
 \label{fig-lift}
-\end{figure*}
-
-Discrimination metrics are persuasive on a slide; their operational reading is what convinces a planner. \figref{fig-lift} translates the model into the way fulfillment teams actually triage. A reviewer who works the top 5 percent of incoming order lines, sorted by model score, captures roughly 80 percent of the orders that will eventually backorder; at the top 10 percent the curve is essentially saturated. The accompanying lift curve peaks above 100x at the head of the score distribution, meaning a planner queuing the highest-risk lines is more than 100 times as likely to find a real backorder as one chosen at random. The model is not replacing human review; it is giving the review queue a defensible order.
+\end{figure}
 
 # Discussion
 
@@ -164,12 +164,12 @@ The narrative is unusual for a capstone: the rule-selected champion is not the d
 
 The reason becomes clear when the stack is opened. Inside the OOF stacking ensemble, the per-base-learner OOF PR-AUCs are 0.55 for logistic regression, 0.32 for random forest, 0.24 for kNN, and 0.23 for LightGBM.^[Source: \texttt{stack\_oof\_pr\_auc} fields in the metrics JSON for the temporal-holdout split.] The meta-learner is itself logistic regression on those four base scores, so the ensemble is mathematically dominated by its strongest base learner, which is also linear. The stack is, in effect, calibrated logistic regression with three weaker tree- and instance-based opinions blended in. It is unsurprising that LR-alone keeps pace.
 
-\begin{figure*}[!tbp]
+\begin{figure}
 \centering
-\includegraphics[width=\textwidth]{../output/figures/classification_feature_importance_logistic_regression_v2_ordertime.png}
+\includegraphics[width=\columnwidth]{../output/figures/classification_feature_importance_logistic_regression_v2_ordertime.png}
 \caption{\textbf{Top features driving logistic regression} on the order-time table. Historical positive-rate features at the customer, material, and client-by-material grain dominate; item-category and country indicators round out the top of the ranking. All features here respect the leakage policy.}
 \label{fig-feat-importance}
-\end{figure*}
+\end{figure}
 
 \figref{fig-feat-importance} sharpens the point. The three highest-coefficient features are leakage-safe historical positive-rate signals at the customer, material, and client-by-material grain, computed with closed-left rolling windows so no information from the day of the order is included. Item-category, country, and confirmation-fill ratio fill out the next tier. These are the kinds of signals that a planner would intuitively reach for, and the model is reaching for the same ones.
 
@@ -177,7 +177,7 @@ The reason becomes clear when the stack is opened. Inside the OOF stacking ensem
 
 The experiment branch documents four disciplined attempts to lift the LR ceiling. Each was atomic, each had a predefined decision gate, and each is reported below at full strength rather than buried.
 
-\begin{table*}
+\begin{table}
 \centering
 \small
 \begin{tabular}{lp{0.7\textwidth}}
@@ -192,13 +192,15 @@ Two-stage cascade & No filter-then-verify configuration on existing OOFs beat si
 \end{tabular}
 \caption{Negative-results log from the experiment branch. Full method, decision gates, and artifact paths per experiment are in the project's performance experiment report. All four outcomes triangulate the same finding: the feature set, not the modeling layer, is what bounds performance on this dataset.}
 \label{tbl-negatives}
-\end{table*}
+\end{table}
 
 The four findings agree. Calibration and cost-sensitive tuning move thresholds without moving rank metrics. Feature engineering that depends on the target inherits whatever bias the target has. Stacking layers cannot recover signal the inputs do not contain. The ceiling is in the data, and the data ceiling has a name: label maturity.
 
 # Limitations
 
-\begin{table*}
+The dominant limitation is **label maturity**, not model architecture. The deployment gate in \tabref{tbl-gates} summarizes the situation: model precision and model recall both clear the protocol's floors, yet the overall release gate fails. The reason is that the most recent 180 days of training data have only 36 percent label coverage and 32 confirmed positives, both below the protocol's 50 percent coverage and 40-positive thresholds. Any rolling feature computed inside that window is biased downward, which is what hurt the rolling-feature experiment. The temporal-test mean positive rate sits well below the long-run prevalence and bursts of late-2020 activity are not represented in the test tail; that maturity-driven undercount is exactly what the gate is built to catch.
+
+\begin{table}
 \centering
 \small
 \begin{tabular}{lrrc}
@@ -216,9 +218,7 @@ Confirmed positives, 90 d & $\ge 15$ & 25 & yes \\
 \end{tabular}
 \caption{Deployment gate decomposition for the rule-selected champion on the outer temporal holdout. The model clears its operating floors; the dataset does not yet clear the maturity floors. Source: deployment-readiness keys in the metrics JSON.}
 \label{tbl-gates}
-\end{table*}
-
-The dominant limitation is **label maturity**, not model architecture. The deployment gate in \tabref{tbl-gates} summarizes the situation: model precision and model recall both clear the protocol's floors, yet the overall release gate fails. The reason is that the most recent 180 days of training data have only 36 percent label coverage and 32 confirmed positives, both below the protocol's 50 percent coverage and 40-positive thresholds. Any rolling feature computed inside that window is biased downward, which is what hurt the rolling-feature experiment. The temporal-test mean positive rate sits well below the long-run prevalence and bursts of late-2020 activity are not represented in the test tail; that maturity-driven undercount is exactly what the gate is built to catch.
+\end{table}
 
 The second limitation is the **sparse-positive regime**. With only 58 confirmed positives in the temporal test window, single-row decisions move precision and recall by visible amounts. Recent-window scores are even sparser (14 test positives), which is why the protocol treats the recent-window check as advisory rather than binding when train-side positive support is thin. The third limitation is feature scope: the order-time table is rich on order intent (quantities, lead times, calendar) but light on ERP-side context (plant lead time, material availability promise, customer credit history) that would likely lift the ceiling. None of those signals were in scope for the v2 build.
 

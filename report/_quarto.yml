@@ -10,7 +10,6 @@ format:
   pdf:
     documentclass: scrartcl
     classoption:
-      - twocolumn
       - twoside=false
       - DIV=14
     pdf-engine: xelatex
