@@ -16,14 +16,14 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from src.models.backorder_modeling import TARGET_BALANCE_FIGURE_FILE
-from poster_matplotlib_style import apply_poster_matplotlib_style
+from poster_matplotlib_style import apply_report_matplotlib_style
 from westminster_poster_palette import BAR_CLASS_NO, BAR_CLASS_OTHER, BAR_CLASS_YES, FLINT
 
 PROCESSED = os.path.join(PROJECT_ROOT, "data", "processed")
 FIGURES_DIR = os.path.join(PROJECT_ROOT, "output", "figures")
 os.makedirs(FIGURES_DIR, exist_ok=True)
 
-apply_poster_matplotlib_style()
+apply_report_matplotlib_style()
 
 _px_w = int(os.environ.get("POSTER_TARGET_BALANCE_EMBED_W", "1773"))
 _px_h = int(os.environ.get("POSTER_TARGET_BALANCE_EMBED_H", "694"))

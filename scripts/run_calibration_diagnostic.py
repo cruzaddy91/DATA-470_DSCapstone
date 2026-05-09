@@ -103,6 +103,11 @@ def main() -> int:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+
+    from poster_matplotlib_style import apply_report_matplotlib_style
+
+    apply_report_matplotlib_style()
+
     fig, ax = plt.subplots(figsize=(9, 7))
     ax.plot([0, 1], [0, 1], linestyle="--", color="#888", linewidth=1.5, label="Perfectly calibrated")
     for key, info in report["models"].items():

@@ -129,23 +129,53 @@ def _render_figure(report: dict[str, Any]) -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    fig, axes = plt.subplots(1, len(report["models"]), figsize=(5.0 * len(report["models"]), 5))
-    if len(report["models"]) == 1:
-        axes = [axes]
-    for ax, (model_key, per_k) in zip(axes, report["models"].items()):
+    from poster_matplotlib_style import apply_report_matplotlib_style
+
+    apply_report_matplotlib_style()
+
+    models_items = list(report["models"].items())
+    n = len(models_items)
+    if n == 0:
+        return
+    ncols = 2 if n > 1 else 1
+    nrows = (n + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(6.8 * ncols, 4.5 * nrows))
+    if n == 1:
+        axes_flat = [axes]
+    else:
+        axes_flat = list(np.atleast_1d(axes).ravel())
+
+    for ax, (model_key, per_k) in zip(axes_flat, models_items):
         label = LABELS.get(model_key, model_key)
         for info in per_k:
             t = np.asarray(info["curve"]["threshold"])
             c = np.asarray(info["curve"]["expected_cost_per_row"])
             ax.plot(t, c, linewidth=2, label=f"k = {int(info['cost_ratio_k'])}")
-            ax.scatter(info["min_cost_threshold"], info["expected_cost_per_row"], s=40, zorder=3, edgecolor="black", linewidth=1)
-        ax.set_xlabel("Decision threshold")
-        ax.set_ylabel("Expected cost per row")
-        ax.set_title(label)
+            ax.scatter(
+                info["min_cost_threshold"],
+                info["expected_cost_per_row"],
+                s=40,
+                zorder=3,
+                edgecolor="black",
+                linewidth=1,
+            )
+        ax.set_xlabel("Decision threshold", fontsize=11)
+        ax.set_ylabel("Expected cost per row", fontsize=11)
+        ax.set_title(label, fontsize=12, fontweight="bold")
         ax.set_xlim(0, 1)
-        ax.legend(fontsize=9)
+        ax.legend(fontsize=9, loc="upper right")
+        ax.tick_params(axis="both", labelsize=10)
         ax.grid(True, alpha=0.3)
-    fig.suptitle("Business-utility curves — expected cost vs threshold under cost ratio k", y=1.02)
+
+    for ax in axes_flat[n:]:
+        ax.set_visible(False)
+
+    fig.suptitle(
+        "Business-utility curves — expected cost vs threshold under cost ratio k",
+        fontsize=13,
+        fontweight="bold",
+        y=1.02,
+    )
     fig.tight_layout()
     out = FIGURES_DIR / "business_utility_curves.png"
     fig.savefig(out, dpi=180, bbox_inches="tight")

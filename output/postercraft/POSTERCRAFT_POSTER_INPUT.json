@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at_utc": "2026-04-24T10:38:02.285751+00:00",
+  "generated_at_utc": "2026-04-27T14:21:00.937828+00:00",
   "repository_root": "/Users/addycruz/Workspace/DATA-470_DSCapstone",
   "purpose": "PosterCraft full-poster aesthetic generation fed by pipeline outputs. Verbatim metrics below are copied from CSV/JSON; chart images are matplotlib/seaborn exports\u2014composite those rasters, do not redraw plots or numbers in diffusion.",
   "authoritative_chart_rasters": [
@@ -8,7 +8,7 @@
       "id": "target_balance",
       "relative_path": "output/figures/target_balance_v2_ordertime.png",
       "postercraft_instruction": "Use this file as the figure layer for this panel; do not regenerate plot geometry or labels.",
-      "sha256": "141669901a43b5004db87f1e6fdd96e9ebdb5efa23a37551f3660f929cc40653",
+      "sha256": "c78e86a9f44e20c1cc0d1ca0ae1b2080d736f39cea0188a0b19cd2f949959381",
       "role_on_poster": "Left column: class balance strip chart",
       "generator_script": "scripts/build_canonical_poster_visual_spec.py \u2192 scripts/render_poster_visuals_from_canonical_spec.py (fallback: scripts/generate_target_balance.py)"
     },
@@ -16,7 +16,7 @@
       "id": "showcase_model_comparison_heatmap",
       "relative_path": "output/figures/showcase_model_comparison_heatmap.png",
       "postercraft_instruction": "Use this file as the figure layer for this panel; do not regenerate plot geometry or labels.",
-      "sha256": "796402ca90ec32dff7de9e352f848f9375f35c21ecc0c99b3562e48c4a661e47",
+      "sha256": "c118fc97c387242598a20b86357a3d599a8f65ee41527df9221508e9c5525afb",
       "role_on_poster": "Center: ROC-AUC / PR-AUC grids (Logistic vs XGBoost vs Stack)",
       "generator_script": "scripts/build_canonical_poster_visual_spec.py \u2192 scripts/render_poster_visuals_from_canonical_spec.py (fallback: scripts/generate_showcase_metrics_visuals.py)"
     },
@@ -32,7 +32,7 @@
       "id": "diagram_validation_flow",
       "relative_path": "poster/diagrams/02_validation_and_models.png",
       "postercraft_instruction": "Use this file as the figure layer for this panel; do not regenerate plot geometry or labels.",
-      "sha256": "7257dd8eb1987b824932dd5c74da2ddcaf02c7d599c9f8f08a9ff7bebb89cff2",
+      "sha256": "30714d51510382babf9309ff46ee8340e3d0ad1daaedf5780a5965efef365959",
       "role_on_poster": "Center: Mermaid validation design",
       "generator_script": "scripts/render_poster_diagrams.sh"
     },
@@ -40,7 +40,7 @@
       "id": "confusion_matrices_temporal",
       "relative_path": "output/figures/classification_confusion_matrices_v2_ordertime.png",
       "postercraft_instruction": "Use this file as the figure layer for this panel; do not regenerate plot geometry or labels.",
-      "sha256": "b5919f327a949c452236c7d0ec23c01628092a5d17499cc3b12ef2782305cd9c",
+      "sha256": "81b4ff1b403277d4cddc1c4be9c0d1593397b136d0766ee997eedb9596a74129",
       "role_on_poster": "Right column: row-normalized confusion matrices",
       "generator_script": "scripts/build_canonical_poster_visual_spec.py \u2192 scripts/render_poster_visuals_from_canonical_spec.py (fallback: scripts/generate_poster_figures_v2.py \u2192 src/models/poster_figures_v2.py)"
     }
@@ -188,22 +188,22 @@
   "optional_matplotlib_outputs": [
     {
       "relative_path": "output/figures/roc_curves_temporal_v2_ordertime.png",
-      "sha256": "1c09e00292e596f1a7908dd46f778baa305d404c5dca9e3ee00c21b68b116e70",
+      "sha256": "d6454afd8ff7cf46fb93d0ab335984f0af20509795550dc08cf1bfedd897500c",
       "note": "Optional/supporting matplotlib export if your PosterCraft layout includes it."
     },
     {
       "relative_path": "output/figures/pr_curves_temporal_v2_ordertime.png",
-      "sha256": "86938ba29a552b57da4f302d0675caf477afdedb87ab66bd536129b20eba3cd5",
+      "sha256": "e37b6a34dc8d3557a035769dcc9f6e72b19f24989f0f69255a15fc899e62f3ba",
       "note": "Optional/supporting matplotlib export if your PosterCraft layout includes it."
     },
     {
       "relative_path": "output/figures/temporal_positive_rate_drift_v2_ordertime.png",
-      "sha256": "9b71c7b24a27ed413a1544bc6e5bb2c22e757fafbf699cbfc0c58264966d6a8a",
+      "sha256": "89caf31dae24acf6fbe72ecf79c7308b5af060341e184829cd1ca4e9b45f8818",
       "note": "Optional/supporting matplotlib export if your PosterCraft layout includes it."
     },
     {
       "relative_path": "output/figures/score_distribution_temporal_v2_ordertime.png",
-      "sha256": "a558b93a34fd0778ed40f44b01e650714268bf9d5acd771ac4d1af948d5d025a",
+      "sha256": "fd1ca5150c3fb3fbcd8f5b7848e6b5c859b578858c3e0bbbfe2420d0d8356952",
       "note": "Optional/supporting matplotlib export if your PosterCraft layout includes it."
     },
     {
@@ -235,8 +235,8 @@
     "02_validation_and_models.mmd": {
       "mermaid_relative": "poster/diagrams/02_validation_and_models.mmd",
       "png_relative": "poster/diagrams/02_validation_and_models.png",
-      "mmd_sha256": "75368e6fc0c22b5ed4cc587bd01e373e0d17b05e27ebb148877a39dca1960415",
-      "png_sha256": "7257dd8eb1987b824932dd5c74da2ddcaf02c7d599c9f8f08a9ff7bebb89cff2"
+      "mmd_sha256": "f9c842427d7159a0039fdddaa88f268ff4fd994cfda3ad4f27f58c9e2a1f65c4",
+      "png_sha256": "30714d51510382babf9309ff46ee8340e3d0ad1daaedf5780a5965efef365959"
     },
     "03_table_change_flow.mmd": {
       "mermaid_relative": "poster/diagrams/03_table_change_flow.mmd",
@@ -249,6 +249,6 @@
     "builder": "build_poster.py",
     "template": "Showcase Templates.pptx",
     "output_pptx_relative": "DS_Capstone_Poster_FULL_RENDER.pptx",
-    "pptx_sha256": "b3bb5a9730e20adba2d20cc11789fee4647621bc6d03092ffa56c3fb903abb62"
+    "pptx_sha256": "eb1df2a44cc74c85828e1ee31d674a3982021bdff3bd3319c4cf48b558aa41d3"
   }
 }

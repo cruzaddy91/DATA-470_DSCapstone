@@ -121,7 +121,11 @@ def test_temporal_split_expands_window_when_recent_tail_is_too_sparse():
 
 
 def test_recent_24_week_split_trains_only_inside_window_and_respects_temporal_order():
-    """Rows outside the last 24 weeks are excluded; train dates precede test dates within the window."""
+    """Rows outside the holdout window are excluded; train dates precede test dates within that window.
+
+    The implementation may expand the window beyond 24 weeks (see ``window_expanded`` in metadata)
+    to satisfy minimum train rows and test positives; assertions use the returned window bounds.
+    """
     days = pd.date_range("2020-01-01", periods=400, freq="D")
     n = len(days)
     features = pd.DataFrame(
@@ -166,7 +170,7 @@ def test_recent_24_week_split_trains_only_inside_window_and_respects_temporal_or
     train_index, test_index, metadata = _recent_24_week_temporal_split_indices(dataset)
 
     anchor = pd.Timestamp(meta["order_date"].max())
-    window_start = anchor - pd.Timedelta(weeks=24)
+    window_start = pd.Timestamp(metadata["window_start_date"])
     train_dates = meta.iloc[train_index]["order_date"]
     test_dates = meta.iloc[test_index]["order_date"]
 
@@ -175,7 +179,7 @@ def test_recent_24_week_split_trains_only_inside_window_and_respects_temporal_or
     assert test_dates.min() >= pd.Timestamp(metadata["split_date"])
     assert test_dates.max() <= anchor
     assert train_dates.max() <= test_dates.min()
-    assert metadata["window_weeks"] == 24
+    assert metadata["window_weeks"] >= 24
 
 
 def test_poster_figures_generate_from_saved_scores(tmp_path: Path) -> None:
@@ -209,9 +213,17 @@ def test_poster_figures_generate_from_saved_scores(tmp_path: Path) -> None:
     diag = {"target_stability": {"monthly_tail": [{"order_month": "2024-01", "positive_rate": 0.05}]}}
     (tmp_path / "models" / "auc_diagnostics_v2_ordertime.json").write_text(json.dumps(diag), encoding="utf-8")
 
-    from src.models.poster_figures_v2 import generate_temporal_holdout_poster_figures
+    import importlib.util
 
-    out = generate_temporal_holdout_poster_figures(tmp_path)
+    _repo = Path(__file__).resolve().parents[1]
+    _poster_fig = _repo / "tools" / "poster" / "poster_figures_v2.py"
+    assert _poster_fig.is_file(), f"missing {_poster_fig}"
+    _spec = importlib.util.spec_from_file_location("poster_figures_v2", _poster_fig)
+    assert _spec and _spec.loader
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+
+    out = _mod.generate_temporal_holdout_poster_figures(tmp_path)
     assert Path(out["roc"]).exists()
     assert Path(out["pr"]).exists()
     assert Path(out["drift"]).exists()

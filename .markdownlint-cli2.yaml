@@ -1,0 +1,21 @@
+# SSVC Validate: enforce table style and real headings (not bold-as-heading).
+# Other rules stay off so prose and long README lines do not block the capstone workflow.
+config:
+  default: false
+  MD036: true
+  MD060: true
+
+globs:
+  - "**/*.md"
+
+ignores:
+  - ".venv/**"
+  - ".venv-v2/**"
+  - ".venv_pr/**"
+  - "**/node_modules/**"
+  - "data/**"
+  - "output/**"
+  - "models/**"
+  - ".matplotlib/**"
+  - "poster/**"
+  - "tools/poster/**"

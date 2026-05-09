@@ -1,6 +1,6 @@
 # Data Science Capstone: Final Proposal
 
-**Predicting Backorder and Overstock Risk, Plus Demand and Inventory Levels**
+## Predicting Backorder and Overstock Risk, Plus Demand and Inventory Levels
 
 **Addy Cruz**  
 Data Science Capstone
@@ -25,7 +25,7 @@ The project will deliver an end-to-end data science pipeline that turns enterpri
 
 **Why this issue needs to be investigated.** Many organizations face simultaneous backorder risk (lost revenue, unfulfilled orders) and overstock (excess inventory, waste). Data-driven classification of at-risk products and numeric forecasts for demand and inventory can improve replenishment, safety stock, and production allocation.
 
-**What we will learn and gain.** We will learn how to design a reproducible pipeline on real SAP-style data: building targets from document flow (order vs delivery vs billing), joining sales and inventory tables, and combining classification with regression/forecasting. We will gain a working pipeline and evidence of which factors drive backorder and overstock and how well predictions support decisions.
+**Outcomes and contributions.** The project delivers a reproducible pipeline on SAP-style data: targets derived from document flow (order versus delivery versus billing), joins across sales and inventory tables, and combined classification with regression or forecasting where applicable. Deliverables include a working pipeline and evidence on which factors associate with backorder and overstock risk and how well predictions support operational decisions.
 
 **Why it is important.** Better prediction of backorder and overstock, plus demand and inventory levels, supports concrete actions (shifting production, reallocating labor, reducing waste, and capturing revenue) which matter for operations and sustainability.
 
@@ -35,7 +35,7 @@ The project will deliver an end-to-end data science pipeline that turns enterpri
 
 **How the project will be developed.** The project will be developed as a reproducible pipeline: data ingestion and cleaning, feature and target construction from SAP tables, exploratory data analysis (EDA), baseline and advanced models for classification and regression/forecasting, evaluation, and documentation. The pipeline will be implemented in Python (such as pandas, scikit-learn) with version-controlled code and clear separation of data, features, models, and reports.
 
-**Technologies and why they are the best choice.** *Data:* SAP BigQuery dataset (Kaggle) provides sales documents (`vbak`, `vbap`, `vbep`), material master and stock (`mara`, `mard`), deliveries (`likp`, `lips`), billing (`vbrk`, `vbrp`), and purchasing (`ekko`, `ekpo`, `ekbe`, `eket`), which are sufficient for demand signals, inventory context, and order-to-delivery flow. *Modeling:* Classification—primary: XGBoost/LightGBM; Plan B: logistic regression. Regression (magnitude)—primary: Ridge/ElasticNet; Plan B: XGBoost/LightGBM. *Tooling:* Python, Jupyter for EDA and reporting, and a scripted pipeline (`run_pipeline.py`) for reproducibility. This stack is standard in data science and aligns with capstone scope and timeline.
+**Technologies and why they are the best choice.** *Data:* SAP BigQuery dataset (Kaggle) provides sales documents (`vbak`, `vbap`, `vbep`), material master and stock (`mara`, `mard`), deliveries (`likp`, `lips`), billing (`vbrk`, `vbrp`), and purchasing (`ekko`, `ekpo`, `ekbe`, `eket`), which are sufficient for demand signals, inventory context, and order-to-delivery flow. *Modeling:* Classification—primary: XGBoost/LightGBM; Plan B: logistic regression. Regression (magnitude)—primary: Ridge/ElasticNet; Plan B: XGBoost/LightGBM. *Tooling:* Python, Jupyter for EDA and reporting, and a scripted pipeline (`run_pipeline.py`) for reproducibility. This stack is standard in data science and matches the project scope and timeline.
 
 ---
 

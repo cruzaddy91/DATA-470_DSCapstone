@@ -325,57 +325,171 @@
       <section id="results" aria-labelledby="h-results">
         <h2 id="h-results">Results</h2>
         <p>
-          <strong>Champion model (selection rule):</strong> <code>oof_calibrated_stack</code>, per inner-temporal policy documented in
-          <span class="path">docs/md/v2_model_truth.md</span> and the metrics JSON. That choice is <strong>not</strong> driven by a single
-          “best on holdout” hack. It follows the inner-CV and calibration story, then is frozen for outer reporting.
+          <strong>Champion (selection rule):</strong> <code>oof_calibrated_stack</code> - selected from <strong>inner temporal validation
+          on temporal-train rows only</strong>, per protocol &sect;9 documented in <span class="path">docs/md/modeling_experiment_protocol.md</span>.
+          The stack composes four base learners spanning four model families (linear, boosted tree, bagged tree, instance-based): logistic
+          regression, LightGBM, RandomForest, and k-nearest neighbors. The meta-learner is a class-weighted logistic regression fit on
+          out-of-fold base probabilities computed via <code>TimeSeriesSplit</code>.
         </p>
         <p>
-          <strong>Outer temporal holdout (forward-time check, frozen OOF-style thresholding as saved in the run):</strong> the canonical summary
-          in the repo currently reports, for the stack, approximately:
+          <strong>Deployable best (single model):</strong> <code>logistic_regression</code> - outperforms the stack on outer-temporal
+          F1 and PR-AUC. The choice to highlight LR for deployment, while reporting the stack as the rule-selected champion, is itself a
+          finding (see Discussion).
         </p>
-        <table class="data-table" role="table" aria-label="Temporal holdout metrics for selected stack">
+
+        <h3>Outer temporal holdout</h3>
+        <p>
+          Test set: <strong>6,521 rows, 58 positives (0.89% base rate)</strong>. A random classifier would achieve PR-AUC equal to the base
+          rate (0.009); every model below produces a 20&times;&ndash;40&times; lift over random in PR-AUC and a strong-discrimination ROC-AUC
+          (&ge; 0.91 for the deployable candidates).
+        </p>
+        <table class="data-table" role="table" aria-label="Outer temporal holdout - model comparison">
           <thead>
             <tr>
-              <th>Metric</th>
-              <th>Value (repo snapshot)</th>
+              <th>Model</th>
+              <th>ROC-AUC</th>
+              <th>PR-AUC</th>
+              <th>Precision</th>
+              <th>Recall</th>
+              <th>F1</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td>Test rows</td>
-              <td>6,521</td>
+              <td><strong>Logistic Regression</strong> (deployable)</td>
+              <td>0.910</td>
+              <td><strong>0.358</strong></td>
+              <td>0.453</td>
+              <td>0.586</td>
+              <td><strong>0.511</strong></td>
             </tr>
             <tr>
-              <td>Test positives</td>
-              <td>58 (sparse-positive regime)</td>
+              <td><strong>OOF-Calibrated Stack</strong> (rule-selected champion)</td>
+              <td><strong>0.936</strong></td>
+              <td>0.326</td>
+              <td>0.410</td>
+              <td>0.431</td>
+              <td>0.420</td>
             </tr>
             <tr>
-              <td>ROC-AUC</td>
-              <td>≈ 0.903</td>
+              <td>Stack (all six base learners, incl. XGB + CatBoost)</td>
+              <td>0.931</td>
+              <td>0.320</td>
+              <td>0.500</td>
+              <td>0.362</td>
+              <td>0.420</td>
             </tr>
             <tr>
-              <td>PR-AUC</td>
-              <td>≈ 0.179</td>
+              <td>Soft Vote (LR + LightGBM)</td>
+              <td>0.916</td>
+              <td>0.333</td>
+              <td>0.321</td>
+              <td>0.466</td>
+              <td>0.380</td>
             </tr>
             <tr>
-              <td>Precision / recall / F1</td>
-              <td>≈ 0.316 / 0.310 / 0.313 (see JSON for full precision)</td>
+              <td>Soft Vote (4 base learners, equal weight)</td>
+              <td>0.930</td>
+              <td>0.319</td>
+              <td>0.435</td>
+              <td>0.345</td>
+              <td>0.385</td>
+            </tr>
+            <tr>
+              <td>LightGBM (alone)</td>
+              <td>0.814</td>
+              <td>0.201</td>
+              <td>0.295</td>
+              <td>0.483</td>
+              <td>0.366</td>
+            </tr>
+            <tr>
+              <td>Random Forest (alone)</td>
+              <td>0.928</td>
+              <td>0.226</td>
+              <td>0.120</td>
+              <td>0.741</td>
+              <td>0.207</td>
+            </tr>
+            <tr>
+              <td>kNN (alone)</td>
+              <td>0.791</td>
+              <td>0.179</td>
+              <td>0.444</td>
+              <td>0.069</td>
+              <td>0.119</td>
             </tr>
           </tbody>
         </table>
         <p>
-          <strong>Deployment gate (as documented):</strong> a simple two-floor check (e.g. precision and recall minima) yields
-          <strong>recall below the floor</strong> in the current reporting run. The project’s stance is to report
-          <strong>NO-GO</strong> honestly rather than swap models to force a “green” banner. Logistic regression can look stronger
-          on some single outer metrics (e.g. PR-AUC) relative to the stack; the <strong>gap between logistic regression and the stack on holdout</strong> is part of
-          the results narrative, not hand-waved away. [Expand in Discussion: section left empty for now per draft plan.]
+          The headline reading: at LR&rsquo;s F1-max threshold, of every 100 actual backorders the model catches 59, and of every 100
+          orders the model flags 45 are true backorders - on a population whose natural backorder rate is roughly 1 in 113.
+          That represents approximately a <strong>40&times; lift in PR-AUC</strong> over random classification and a
+          <strong>~50&times; precision enrichment</strong> at the deploy threshold.
+        </p>
+
+        <h3>Methodological contributions surfaced during evaluation</h3>
+        <p>
+          Three correctness defects in the original stack pipeline were identified and remediated. Their measured effects on outer-temporal
+          performance are part of the results, not appendix material:
+        </p>
+        <ol class="list-tight">
+          <li><strong>Threshold-calibration leakage (fixed).</strong> The stack&rsquo;s decision threshold was being chosen against
+          <code>y_test</code> rather than train-only out-of-fold probabilities. Repointing the threshold search to OOF-meta probabilities
+          revealed an honest baseline (stack F1 dropped from a flattered 0.313 to 0.190 before re-tuning) and made all subsequent
+          improvements measurable on a level surface.</li>
+          <li><strong>OOF random-fold leakage (fixed).</strong> The stack&rsquo;s out-of-fold probability matrix was being constructed
+          via <code>StratifiedKFold(shuffle=True)</code> on temporally-structured data - future rows leaked into earlier-fold training,
+          making the meta-learner calibrate against impossible signal. Replacing it with <code>TimeSeriesSplit</code> lifted the stack&rsquo;s
+          outer-temporal PR-AUC from 0.244 to 0.326 (a 34% relative improvement attributable purely to validation correctness).</li>
+          <li><strong>SMOTE asymmetry (fixed).</strong> The OOF fold fits applied SMOTE while the final full refit did not. The meta-LR
+          therefore learned a probability mapping that the test-time stack could not reproduce. SMOTE was removed from both sides; class
+          imbalance is now handled solely at base-learner level via <code>class_weight</code>.</li>
+        </ol>
+
+        <h3>Negative results from adversarial experiments</h3>
+        <p>
+          Two attempted lifts were tested and reported even though neither improved performance. Both findings are informative.
         </p>
         <ul class="list-tight">
-          <li><strong>Where to look:</strong> <span class="path">models/temporal_holdout_test_scores_v2_ordertime.json</span> and
-          <span class="path">models/classification_metrics_v2_ordertime.json</span> for the exact numbers your graders can reproduce.</li>
-          <li><strong>Dashboard:</strong> optional HTML health view from <code>scripts/generate_model_health_dashboard.py</code> if cited in the final version.</li>
+          <li><strong>Temporal-safe rolling features (negative).</strong> Per-cohort rolling rates and volumes
+          (<code>plant_backorder_rate_90d</code>, <code>material_order_volume_30d</code>, etc.) were built with strict
+          <code>closed=&apos;left&apos;</code> windowing to prevent same-day leakage. Despite correct temporal hygiene, the features hurt
+          stack performance (F1 0.420 &rarr; 0.275). Root cause: the most recent 180 days of training data have only 36% mature labels,
+          so the rolling backorder-rate features inherit systematic under-reporting. Tree-based base learners latched onto the bias more
+          than logistic regression. Even target-independent rolling features (volumes, confirmation rates only) failed to lift because
+          of multi-decade train-vs-test distributional drift in volume patterns.</li>
+          <li><strong>Two-stage cascade (no lift).</strong> Four cascade configurations were tested post-hoc on existing predicted
+          probabilities. The strongest configuration matched single-model LR&rsquo;s F1 (0.517) but did not exceed it. Cascading does not
+          create separating signal where none exists in the probability tail; the dataset&rsquo;s feature ceiling, not the modeling layer,
+          is the binding constraint.</li>
         </ul>
-        <p><em>[Draft: add one to two key figures in final: confusion matrix, PR curve, or calibration; paths under </em><code>output/figures/</code><em>.]</em></p>
+
+        <h3>Deployment readiness gate</h3>
+        <p>
+          The deployment readiness check uses three floors evaluated against the rule-selected champion:
+        </p>
+        <ul class="list-tight">
+          <li><strong>Precision floor 0.15:</strong> stack precision 0.410 - <strong>passes</strong>.</li>
+          <li><strong>Recall floor 0.35:</strong> stack recall 0.431 - <strong>passes</strong>.</li>
+          <li><strong>Label maturity floor:</strong> last-180-days label coverage 36% (minimum 50%); observed positives 32 (minimum 40)
+          - <strong>fails</strong>.</li>
+        </ul>
+        <p>
+          The model itself clears both performance gates. The overall <code>gate_pass = false</code> status is driven entirely by the
+          label maturity gate, which is a <strong>dataset-side</strong> condition (recent orders have not had time to materialize as
+          backorders or as confirmed deliveries) and not a model-side defect. This distinction is central to the Discussion that follows.
+        </p>
+
+        <h3>Reproducibility pointers</h3>
+        <ul class="list-tight">
+          <li>Truth summary: <span class="path">docs/md/v2_model_truth.md</span></li>
+          <li>Champion-selection protocol: <span class="path">docs/md/modeling_experiment_protocol.md</span> &sect;9</li>
+          <li>Frozen metrics: <span class="path">models/classification_metrics_v2_ordertime.json</span></li>
+          <li>Per-model holdout scores (y_true, y_proba arrays): <span class="path">models/temporal_holdout_test_scores_v2_ordertime.json</span></li>
+          <li>Live HTML dashboard: <span class="path">output/dashboard/model_health_dashboard.html</span></li>
+          <li>Per-experiment write-up: <span class="path">docs/md/performance_experiment_report.md</span></li>
+        </ul>
       </section>
 
       <section id="discussion" aria-labelledby="h-discussion">

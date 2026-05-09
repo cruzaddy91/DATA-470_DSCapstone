@@ -25,8 +25,8 @@ output/dashboard/*
 !output/dashboard/model_health_dashboard.html
 # CatBoost writes this during training; never publish run metadata
 catboost_info/
-# mermaid-cli: generated puppeteer config (local Chrome path)
-poster/diagrams/.mermaid_puppeteer_launch.json
+# Legacy root-level poster/ only (anchored so tools/poster/ is not matched)
+/poster/
 
 # Local large poster working copies (regenerate from build_poster / deck scripts)
 DS_Capstone_Poster_FINAL_SCRIPT_COPY.pptx

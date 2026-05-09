@@ -1,7 +1,7 @@
 .ONESHELL:
 SHELL := /bin/zsh
 
-.PHONY: run monitor v2-data v2-targets v2-model v2-report v2-all
+.PHONY: run monitor validate v2-data v2-targets v2-model v2-report v2-all
 
 PYTHON := $(CURDIR)/.venv_pr/bin/python
 # Official v2 capstone workflow (override if needed: `make v2-all V2PY=python3`)
@@ -29,6 +29,12 @@ run:
 	ulimit -S -v $(SOFT_LIMIT_KB) || { echo "Failed to set soft virtual memory limit via ulimit."; exit 1; }
 	printf 'Active ulimit -v: soft=%s KB hard=%s KB\n' "$$(ulimit -S -v)" "$$(ulimit -H -v)"
 	exec "$(PYTHON)" "$(SCRIPT)"
+
+validate:
+	@if [[ ! -x "$(CURDIR)/scripts/ssvc_validate.sh" ]]; then \
+		echo "Missing $(CURDIR)/scripts/ssvc_validate.sh"; exit 1; \
+	fi
+	"$(CURDIR)/scripts/ssvc_validate.sh"
 
 monitor:
 	target="$(strip $(if $(TARGET),$(TARGET),$(SCRIPT)))"

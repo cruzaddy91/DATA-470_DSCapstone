@@ -22,6 +22,9 @@
 \usepackage{eso-pic}
 \usepackage{graphicx}
 \usepackage{tikz}
+\usepackage{dblfloatfix}
+% In-flow full-width blocks in two-column mode (avoids star-float empty pages).
+\usepackage{cuted}
 
 % Hyperlink color: Thistle
 \usepackage{hyperref}
@@ -37,11 +40,21 @@
 % Use \figref{label} and \tabref{label} instead of Figure~\ref{label} / Table~\ref{label}.
 \newcommand{\figref}[1]{\textcolor{wuCopper}{Figure~\ref*{#1}}}
 \newcommand{\tabref}[1]{\textcolor{wuNight}{Table~\ref*{#1}}}
+% Full-width strip graphics: cap height so image + caption fit inside \textheight
+% (minipage is unbreakable; without a conservative max height the page clips the bottom).
+\newcommand{\includereportfig}[1]{%
+  \includegraphics[width=\linewidth,height=0.46\textheight,keepaspectratio]{#1}}
+\newcommand{\includereportfigtall}[1]{%
+  \includegraphics[width=\linewidth,height=0.36\textheight,keepaspectratio]{#1}}
 
 % Force floats to land where the source places them (fixes drift across pages).
 \usepackage{float}
 \floatplacement{figure}{H}
 \floatplacement{table}{H}
+% Flush float queues before continuing (paired with \FloatBarrier after floats in the QMD).
+\usepackage{placeins}
+% Skip starting a wide strip if less than this remains on the column/page (reduces clipping/orphans).
+\usepackage{needspace}
 
 % Allow long monospace paths (e.g. file paths inside `\texttt{}`) to break across
 % lines instead of running past the right margin.

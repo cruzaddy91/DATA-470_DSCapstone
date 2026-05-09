@@ -36,6 +36,11 @@ os.environ.setdefault("MPLCONFIGDIR", str(_DEFAULT_MPL_DIR))
 import joblib
 import numpy as np
 import pandas as pd
+
+_poster_tool_dir = Path(__file__).resolve().parents[2] / "tools" / "poster"
+if _poster_tool_dir.is_dir():
+    sys.path.insert(0, str(_poster_tool_dir))
+
 try:
     from westminster_poster_palette import BIRCH, COPPER, FLINT, NIGHT, SKY, THISTLE
     from westminster_poster_palette import brand_confusion_heatmap_cmap
@@ -355,7 +360,11 @@ def _get_plotting_modules():
     import matplotlib.pyplot as plt
     import seaborn as sns
 
+    from poster_matplotlib_style import apply_report_matplotlib_style
+
     sns.set_theme(style="whitegrid", palette="deep", font_scale=1.0)
+    # Seaborn defaults to sans-serif; restore report/PDF typography (Times New Roman).
+    apply_report_matplotlib_style()
     return plt, sns
 
 
@@ -3059,9 +3068,20 @@ def run_overfit_evaluation(project_root: str | Path | None = None) -> dict[str, 
         "recent_24_week_temporal_holdout",
         paths["models"] / RECENT_HOLDOUT_SCORES_FILE,
     )
-    from .poster_figures_v2 import generate_temporal_holdout_poster_figures
+    import importlib.util
 
-    generate_temporal_holdout_poster_figures(paths["project_root"])
+    _poster_fig = Path(paths["project_root"]) / "tools" / "poster" / "poster_figures_v2.py"
+    if not _poster_fig.is_file():
+        raise FileNotFoundError(
+            "Poster figure helper missing (expected tools/poster/poster_figures_v2.py). "
+            "Restore from backup or skip poster generation for this run."
+        )
+    _spec = importlib.util.spec_from_file_location("poster_figures_v2", _poster_fig)
+    if _spec is None or _spec.loader is None:
+        raise RuntimeError("Could not load poster_figures_v2 module spec.")
+    _poster_mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_poster_mod)
+    _poster_mod.generate_temporal_holdout_poster_figures(paths["project_root"])
 
     full_models = _save_model_artifacts(dataset, paths)
     if best_model_name not in full_models:
