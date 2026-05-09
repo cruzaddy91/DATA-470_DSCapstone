@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 import pandas as pd
 
 from src.models.backorder_modeling import (
@@ -182,6 +184,10 @@ def test_recent_24_week_split_trains_only_inside_window_and_respects_temporal_or
     assert metadata["window_weeks"] >= 24
 
 
+@pytest.mark.skipif(
+    not (Path(__file__).resolve().parents[1] / "tools" / "poster" / "poster_figures_v2.py").is_file(),
+    reason="Optional tools/poster stack not present (poster figures are skipped in modeling without it).",
+)
 def test_poster_figures_generate_from_saved_scores(tmp_path: Path) -> None:
     """Smoke-test ROC/PR/drift/score PNG generation (no full modeling run)."""
     os.environ.setdefault("MPLBACKEND", "Agg")
@@ -218,6 +224,9 @@ def test_poster_figures_generate_from_saved_scores(tmp_path: Path) -> None:
     _repo = Path(__file__).resolve().parents[1]
     _poster_fig = _repo / "tools" / "poster" / "poster_figures_v2.py"
     assert _poster_fig.is_file(), f"missing {_poster_fig}"
+    _poster_dir = str(_repo / "tools" / "poster")
+    if _poster_dir not in sys.path:
+        sys.path.insert(0, _poster_dir)
     _spec = importlib.util.spec_from_file_location("poster_figures_v2", _poster_fig)
     assert _spec and _spec.loader
     _mod = importlib.util.module_from_spec(_spec)

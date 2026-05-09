@@ -21,7 +21,7 @@
 - [Temporal holdout](#temporal-holdout-plain-english)
 - [Model comparison](#model-comparison)
 - [Canonical workflow](#canonical-workflow)
-- [Validate (SSVC)](#validate-ssvc)
+- [Validate](#validate)
 - [Key files](#key-files)
 - [Quick start](#quick-start)
 - [End-to-end (dependency order)](#end-to-end-dependency-order)
@@ -33,6 +33,8 @@
 ## Project overview
 
 This repository is the **authoritative capstone workspace** for Westminster DATA-470 (Spring 2026): a full stack from curated SAP BigQuery tables through leakage-aware features, model training, threshold analysis, and publication-ready outputs.
+
+**Remote scope:** Git tracks what you need to run the data pipeline, build the `v2` modeling table, train and evaluate models, and regenerate the main HTML and Quarto report outputs. Optional local-only material (IDE config, showcase decks, poster tooling under `tools/poster/`, and similar) is listed in [`.gitignore`](.gitignore) so you can keep copies on disk without committing them.
 
 End-to-end flow (high level):
 
@@ -172,16 +174,13 @@ flowchart TD
 
 ---
 
-## Validate (SSVC)
-
-Workflow **Validate** for Markdown in this repo (structure only: **MD036** no emphasis-as-heading, **MD060** table pipe spacing). Paths under `poster/` are excluded (same as push policy). Requires Node.js `npx`.
+## Validate
 
 ```bash
 make validate
-# or: ./scripts/ssvc_validate.sh
 ```
 
-Config: [`.markdownlint-cli2.yaml`](.markdownlint-cli2.yaml) (only those rules are enabled so long prose lines do not fail the check).
+This runs a quick `compileall` over `src/` and `scripts/` using `V2PY` (see the [Makefile](Makefile)). Install `pytest` in your local venv if you also want `pytest tests/`.
 
 ---
 
@@ -190,7 +189,6 @@ Config: [`.markdownlint-cli2.yaml`](.markdownlint-cli2.yaml) (only those rules a
 | Path | Purpose |
 | --- | --- |
 | `docs/md/v2_model_truth.md` | Short canonical summary of the official modeling story |
-| `docs/md/showcase_application_templates.md` | Optional abstract and poster copy (symposium-style); venue-neutral |
 | `requirements-v2.txt` | Minimal package set for the official `v2` workflow |
 | `src/features/build_targets.py` | Builds the official `v2` order-time modeling table |
 | `src/models/v2_ordertime/` | Separate LR and LightGBM pipeline modules, shared preprocessing + evaluation; `classifier_registry.py` wires both |
@@ -259,9 +257,7 @@ DATA-470_DSCapstone/
 ├── models/
 ├── output/
 ├── report/
-├── scripts/          # v2 pipeline + analysis (no poster scripts here)
-├── tools/
-│   └── poster/         # optional showcase poster stack (see tools/poster/README.md)
+├── scripts/          # v2 pipeline entrypoints and helpers
 ├── src/
 └── tests/
 ```

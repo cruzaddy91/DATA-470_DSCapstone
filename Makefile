@@ -31,10 +31,8 @@ run:
 	exec "$(PYTHON)" "$(SCRIPT)"
 
 validate:
-	@if [[ ! -x "$(CURDIR)/scripts/ssvc_validate.sh" ]]; then \
-		echo "Missing $(CURDIR)/scripts/ssvc_validate.sh"; exit 1; \
-	fi
-	"$(CURDIR)/scripts/ssvc_validate.sh"
+	@"$(V2PY)" -m compileall -q "$(CURDIR)/src" "$(CURDIR)/scripts"
+	@echo "validate: compileall OK (install pytest locally if you want pytest too)"
 
 monitor:
 	target="$(strip $(if $(TARGET),$(TARGET),$(SCRIPT)))"
