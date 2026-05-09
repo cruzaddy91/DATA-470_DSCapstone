@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Run the three notebook replacements in order (EDA → modeling summary → conclusion).
+"""Run the three headless replacements in order (EDA → modeling summary → conclusion).
 
-Same outputs as ``notebooks/01_*.ipynb`` … ``03_*.ipynb`` without Jupyter.
+These replace the old course Jupyter flow; there are no ``.ipynb`` files in the repo.
 """
 
 from __future__ import annotations

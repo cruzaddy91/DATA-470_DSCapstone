@@ -73,3 +73,6 @@ docs/html/data-capstone-pipeline-report.html
 docs/html/final_proposal.html
 
 docs/assignments/
+
+# Legacy notebook folder (Jupyter removed; optional local notes)
+notebooks/
