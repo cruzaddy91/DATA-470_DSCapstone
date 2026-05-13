@@ -247,7 +247,7 @@ make v2-all
 ## Project structure
 
 ```text
-DATA-470_DSCapstone/
+data-470-dscapstone/
 ├── config/
 ├── data/
 │   ├── raw/
