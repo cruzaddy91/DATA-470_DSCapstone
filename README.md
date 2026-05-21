@@ -53,6 +53,7 @@ This repository is the **authoritative capstone workspace** for Westminster DATA
 End-to-end capstone flow:
 
 ```mermaid
+%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
 flowchart LR
   subgraph ingest[Data]
     R[Raw SAP CSVs]
@@ -76,6 +77,7 @@ flowchart LR
 Order-time feature boundary (`v2`):
 
 ```mermaid
+%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
 flowchart TB
   subgraph allowed[Allowed at order time]
     A1[Order qty, value, lead time]
@@ -92,6 +94,7 @@ flowchart TB
 Temporal holdout (plain English: train on older orders, test on later orders):
 
 ```mermaid
+%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
 flowchart LR
   subgraph past[Older orders]
     TR[Training fit]
@@ -105,6 +108,7 @@ flowchart LR
 Canonical pipeline steps:
 
 ```mermaid
+%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
 flowchart TD
   S1[1. run_pipeline.py — master + BRD]
   S2[2. build_targets — v2 modeling CSV]
