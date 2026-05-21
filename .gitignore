@@ -32,6 +32,12 @@ catboost_info/
 DS_Capstone_Poster_FINAL_SCRIPT_COPY.pptx
 DS_Capstone_Poster_FULL_RENDER.pptx
 
+# Dataset trees (download raw SAP tables per data/README.md; regenerate clean/processed locally)
+data/raw/**
+data/clean/**
+data/processed/**
+!data/README.md
+
 # Optional snapshot-backorder modeling tables (rebuild via src.features.build_targets when needed)
 data/processed/master_order_fulfillment_modeling_snapshot_backorder.csv
 data/processed/int_snapshot_backorder_derived.csv

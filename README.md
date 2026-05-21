@@ -1,42 +1,56 @@
 # Predictive supply chain analytics · SAP backorder risk
 
-| Field | Detail |
-| --- | --- |
-| **Institution** | Westminster University |
-| **Course** | DATA-470 · Data Science Capstone |
-| **Term** | Spring 2026 |
-| **Student** | Addy Cruz |
-| **Instructor** | Dr. Liang Jingsai |
+<p align="center">
+  <img src="https://img.shields.io/badge/Westminster-DATA--470-8B4513?style=flat-square" alt="DATA-470 capstone" />
+  <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12" />
+  <img src="https://img.shields.io/badge/models-LR%20%7C%20XGBoost%20%7C%20OOF--stack-555555?style=flat-square" alt="Model stack" />
+  <img src="https://img.shields.io/badge/report-Quarto%20%2B%20HTML-0369a1?style=flat-square" alt="Reporting" />
+</p>
 
-> **Project:** Order-time binary classification of backorder risk from SAP-style ERP extracts, with a reproducible Python pipeline, temporal validation, and frozen reporting artifacts (HTML / Quarto PDF).
+<p align="center"><strong>Westminster University · Data Science Capstone · Spring 2026</strong> · <code>SAP Backorder Classifier</code></p>
 
 ---
 
 ## Contents
 
-- [Project overview](#project-overview)
-- [Source of truth](#source-of-truth)
-- [Problem framing](#problem-framing)
-- [Why `v2`](#why-v2)
-- [Temporal holdout](#temporal-holdout-plain-english)
-- [Model comparison](#model-comparison)
-- [Canonical workflow](#canonical-workflow)
-- [Validate](#validate)
-- [Key files](#key-files)
-- [Quick start](#quick-start)
-- [End-to-end (dependency order)](#end-to-end-dependency-order)
-- [Project structure](#project-structure)
-- [License](#license)
+| Section | Purpose |
+| :-- | :-- |
+| [Overview](#overview) | Capstone scope and audience |
+| [Workflow](#workflow) | Reproduce the official v2 pipeline |
+| [Architecture](#architecture) | End-to-end and modeling diagrams |
+| [Deep dive](#deep-dive) | Problem framing, models, key files |
+| [References](#references) | Reports, truth docs, license |
 
 ---
 
-## Project overview
+## Overview
 
-This repository is the **authoritative capstone workspace** for Westminster DATA-470 (Spring 2026): a full stack from curated SAP BigQuery tables through leakage-aware features, model training, threshold analysis, and publication-ready outputs.
+| Field | Value |
+| :-- | :-- |
+| **Audience** | Recruiters, reviewers, and engineers evaluating reproducible ML on ERP-style order data |
+| **Goal** | Order-time binary classification of SAP-style backorder risk with leakage-aware features, temporal validation, and frozen reporting artifacts |
+| **Owner** | Addy Cruz (Westminster University, DATA-470, Dr. Liang Jingsai) |
 
-**Remote scope:** Git tracks what you need to run the data pipeline, build the `v2` modeling table, train and evaluate models, and regenerate the main HTML and Quarto report outputs. Optional local-only material (IDE config, showcase decks, poster tooling under `tools/poster/`, and similar) is listed in [`.gitignore`](.gitignore) so you can keep copies on disk without committing them.
+This repository is the **authoritative capstone workspace** for Westminster DATA-470 (Spring 2026): curated SAP tables through leakage-aware features, model training, threshold analysis, and publication-ready HTML / Quarto outputs.
 
-End-to-end flow (high level):
+> [!IMPORTANT]
+> Git tracks pipeline code, configs, frozen metrics, and reports — **not** raw SAP CSVs. Download inputs per [data/README.md](data/README.md).
+
+---
+
+## Workflow
+
+- [ ] Download raw SAP tables into `data/raw/` ([Kaggle source](https://www.kaggle.com/datasets/mustafakeser4/sap-dataset-bigquery-dataset))
+- [ ] Create venv and install: `pip install -r requirements-v2.txt`
+- [ ] Run end-to-end: `make v2-all` or `./scripts/run_v2_full_chain.sh`
+- [ ] Validate: `make validate`
+- [ ] Confirm champion and gates: [docs/md/v2_model_truth.md](docs/md/v2_model_truth.md)
+
+---
+
+## Architecture
+
+End-to-end capstone flow:
 
 ```mermaid
 flowchart LR
@@ -59,39 +73,7 @@ flowchart LR
   A --> Q
 ```
 
----
-
-## Source of truth
-
-This repository treats `v2` as the only official modeling path.
-
-- Official modeling table: `data/processed/master_order_fulfillment_modeling_v2_ordertime.csv`
-- Official target: `target_backorder_risk`
-- Official task: binary classification
-  `backorder` vs `no backorder`
-- Official model comparison (poster headlines):
-  `logistic_regression` vs `xgboost` vs `oof_calibrated_stack` (selected champion, inner-temporal rule)
-- `lightgbm` and `catboost` are base learners inside the OOF-calibrated stack; reported in the full comparison table but not poster headlines.
-- Deployment status is reported honestly (precision + recall floors); see `docs/md/v2_model_truth.md` for the current champion and gate result.
-
-Older snapshot-style experiments and `v1.1` are not part of the current project story.
-
----
-
-## Problem framing
-
-The capstone answers two questions in order:
-
-1. Will this order line become a backorder?
-2. If yes, by how much?
-
-The main project result is the first question. The regression piece is secondary.
-
----
-
-## Why `v2`
-
-`v2` uses only information that is available at order time. That makes it more defensible than snapshot variants that include fields too close to the label definition.
+Order-time feature boundary (`v2`):
 
 ```mermaid
 flowchart TB
@@ -107,25 +89,7 @@ flowchart TB
   excluded -.->|not used|M
 ```
 
-In practice, this means the model can use order-time business context such as:
-
-- order quantity
-- confirmed quantity
-- net value
-- requested lead time
-- order calendar features
-- basic categorical context like plant, division, item category, and sales organization
-
-It does not use downstream snapshot fields like `outstanding_qty` or `saleable_inventory`.
-
----
-
-## Temporal holdout, plain English
-
-The temporal split is simple:
-
-- train on older orders
-- test on later orders
+Temporal holdout (plain English: train on older orders, test on later orders):
 
 ```mermaid
 flowchart LR
@@ -138,25 +102,7 @@ flowchart LR
   past -->|chronology| future
 ```
 
-That is all it means. It is just a more realistic check of whether the model would still work on future orders.
-
----
-
-## Model comparison
-
-Candidates can include several tabular models (see the cockpit). The narrative should stay disciplined:
-
-| Model | Role | Why it is here |
-| --- | --- | --- |
-| `logistic_regression` | Baseline | Simple, interpretable, easy to defend |
-| `lightgbm` | Challenger | Captures non-linear patterns in tabular data |
-| Other challengers (e.g. `catboost`, ensembles) | Optional | Compared under the same protocol when enabled |
-
-**Champion rule:** The primary model is selected from **inner temporal validation** on temporal-train rows only (`selected_model` in `models/classification_metrics_v2_ordertime.json`). **Temporal holdout** is the main forward-time evaluation for reporting—not the place to pick architecture by peeking. Group / recent splits are diagnostic. Full wording: `docs/md/modeling_experiment_protocol.md` section 9.
-
----
-
-## Canonical workflow
+Canonical pipeline steps:
 
 ```mermaid
 flowchart TD
@@ -167,103 +113,119 @@ flowchart TD
   S1 --> S2 --> S3 --> S4
 ```
 
-1. Build pipeline tables.
-2. Build the `v2` order-time modeling table.
-3. Train and compare models under the protocol; confirm `selected_model` reflects inner-temporal choice.
-4. Report temporal holdout metrics for the selected model; use `scripts/generate_model_health_dashboard.py` for a frozen HTML checkpoint when desired.
-
 ---
 
-## Validate
+## Deep dive
 
-```bash
-make validate
-```
+### Institution
 
-This runs a quick `compileall` over `src/` and `scripts/` using `V2PY` (see the [Makefile](Makefile)). Install `pytest` in your local venv if you also want `pytest tests/`.
+| Field | Detail |
+| :-- | :-- |
+| **Institution** | Westminster University |
+| **Course** | DATA-470 · Data Science Capstone |
+| **Term** | Spring 2026 |
+| **Student** | Addy Cruz |
+| **Instructor** | Dr. Liang Jingsai |
 
----
+### Source of truth
 
-## Key files
+This repository treats `v2` as the only official modeling path.
+
+- Official modeling table: `data/processed/master_order_fulfillment_modeling_v2_ordertime.csv` (generated locally)
+- Official target: `target_backorder_risk`
+- Official task: binary classification (`backorder` vs `no backorder`)
+- Poster headline triad: `logistic_regression` vs `xgboost` vs `oof_calibrated_stack` (selected champion, inner-temporal rule)
+- `lightgbm` and `catboost` are base learners inside the OOF-calibrated stack
+- Deployment status (precision + recall floors): [docs/md/v2_model_truth.md](docs/md/v2_model_truth.md)
+
+### Problem framing
+
+1. Will this order line become a backorder?
+2. If yes, by how much?
+
+The main capstone result is the first question. The regression piece is secondary.
+
+### Model comparison
+
+| Model | Role | Why it is here |
+| :-- | :-- | :-- |
+| `logistic_regression` | Baseline | Simple, interpretable, easy to defend |
+| `xgboost` | Tree benchmark | Strong tabular interactions |
+| `oof_calibrated_stack` | **Selected champion** | Combines LR + LightGBM + XGBoost + CatBoost via OOF-calibrated stacking |
+| `lightgbm` / `catboost` | Stack base learners | Reported in full comparison table; not poster headlines |
+
+**Champion rule:** select on **inner temporal validation** on temporal-train rows only. Report **temporal holdout** at the frozen OOF threshold as the honest forward-time check. See [docs/md/modeling_experiment_protocol.md](docs/md/modeling_experiment_protocol.md) section 9.
+
+### Key files
 
 | Path | Purpose |
-| --- | --- |
-| `docs/md/v2_model_truth.md` | Short canonical summary of the official modeling story |
-| `requirements-v2.txt` | Minimal package set for the official `v2` workflow |
-| `src/features/build_targets.py` | Builds the official `v2` order-time modeling table |
-| `src/models/v2_ordertime/` | Separate LR and LightGBM pipeline modules, shared preprocessing + evaluation; `classifier_registry.py` wires both |
-| `src/models/backorder_modeling.py` | Dataset prep, splits, orchestration, artifacts (imports `v2_ordertime` for models) |
-| `scripts/run_modeling.py` | **Canonical** modeling run: train/eval, threshold report, model health dashboard |
-| `scripts/run_overfit_eval.py` | Optional **minimal** retrain (metrics only); prefer `run_modeling.py` for full artifacts |
-| `scripts/run_v2_full_chain.sh` | Runs data → targets → modeling → HTML → **notebook `.py` replacements** (EDA + summaries) |
-| `scripts/run_notebook_replacements.py` | EDA + report summaries (replaces removed notebooks; `discovery_*.png`, CSVs, figure checks) |
-| `scripts/generate_model_performance_side_by_side_html.py` | Writes a simple comparison report |
-| `models/classification_metrics_v2_ordertime.json` | Main saved classification metrics |
+| :-- | :-- |
+| [docs/md/v2_model_truth.md](docs/md/v2_model_truth.md) | Canonical modeling story and current champion |
+| [requirements-v2.txt](requirements-v2.txt) | Minimal package set for the official `v2` workflow |
+| [src/features/build_targets.py](src/features/build_targets.py) | Builds the official `v2` order-time modeling table |
+| [scripts/run_modeling.py](scripts/run_modeling.py) | Canonical modeling run: train/eval, threshold report, health dashboard |
+| [scripts/run_v2_full_chain.sh](scripts/run_v2_full_chain.sh) | Data → targets → modeling → HTML → notebook replacements |
+| [models/classification_metrics_v2_ordertime.json](models/classification_metrics_v2_ordertime.json) | Saved classification metrics |
 
----
-
-## Quick start
+### Quick start
 
 ```bash
 python3.12 -m venv .venv-v2
 source .venv-v2/bin/activate
 pip install -r requirements-v2.txt
+# Place raw SAP CSVs under data/raw/ per data/README.md
 python run_pipeline.py
 python -m src.features.build_targets
 python scripts/run_modeling.py
 python scripts/generate_model_performance_side_by_side_html.py
-python scripts/run_notebook_replacements.py
 ```
 
----
-
-## End-to-end (dependency order)
-
-Run steps **in this order**; each step assumes the previous outputs exist under `data/processed/`.
-
-| Step | What it does |
-| --- | --- |
-| 1 | `python run_pipeline.py` — master tables + BRD metrics |
-| 2 | `python -m src.features.build_targets` — **`master_order_fulfillment_modeling_v2_ordertime.csv`** (+ other targets) |
-| 3 | `python scripts/run_modeling.py` — metrics JSON, figures, joblib models |
-| 4 | `python scripts/generate_model_performance_side_by_side_html.py` — `docs/html/Model-Performance-SideBySide.html` |
-
-**One shot** (uses `.venv-v2/bin/python` if present):
+One-shot:
 
 ```bash
 chmod +x scripts/run_v2_full_chain.sh
 ./scripts/run_v2_full_chain.sh
 ```
 
-**Make** (same order; set `V2PY` if not using `.venv-v2`):
+### End-to-end (dependency order)
 
-```bash
-make v2-all
-# or stepwise: make v2-data && make v2-targets && make v2-model && make v2-report
-```
+| Step | Command |
+| :-- | :-- |
+| 1 | `python run_pipeline.py` — master tables + BRD metrics |
+| 2 | `python -m src.features.build_targets` — `master_order_fulfillment_modeling_v2_ordertime.csv` |
+| 3 | `python scripts/run_modeling.py` — metrics JSON, figures, joblib models |
+| 4 | `python scripts/generate_model_performance_side_by_side_html.py` — side-by-side HTML report |
 
----
-
-## Project structure
+### Project structure
 
 ```text
-data-470-dscapstone/
+DATA-470_DSCapstone/
 ├── config/
-├── data/
-│   ├── raw/
-│   ├── clean/
-│   └── processed/
+├── data/              # raw/clean/processed (local only; see data/README.md)
 ├── docs/
 ├── models/
 ├── output/
 ├── report/
-├── scripts/          # v2 pipeline entrypoints and helpers
+├── scripts/
 ├── src/
 └── tests/
 ```
 
----
-
-## License
+### License
 
 MIT — see [LICENSE](LICENSE).
+
+---
+
+## References
+
+| Resource | Notes |
+| :-- | :-- |
+| [data/README.md](data/README.md) | Kaggle download layout and reproducibility |
+| [docs/md/v2_model_truth.md](docs/md/v2_model_truth.md) | Champion model and deployment gates |
+| [docs/html/data-capstone-pipeline-report.html](docs/html/data-capstone-pipeline-report.html) | Frozen pipeline report (when present locally) |
+| [SECURITY.md](SECURITY.md) | Vulnerability reporting |
+
+---
+
+<!-- readme-normalize: workspace-template v1 -->
