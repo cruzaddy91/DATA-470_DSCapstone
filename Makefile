@@ -1,11 +1,11 @@
 .ONESHELL:
-SHELL := /bin/zsh
+SHELL := /bin/bash
 
 .PHONY: run monitor validate v2-data v2-targets v2-model v2-report v2-all
 
 PYTHON := $(CURDIR)/.venv_pr/bin/python
 # Official v2 capstone workflow (override if needed: `make v2-all V2PY=python3`)
-V2PY ?= $(CURDIR)/.venv-v2/bin/python
+V2PY ?= $(if $(wildcard $(CURDIR)/.venv-v2/bin/python),$(CURDIR)/.venv-v2/bin/python,python3)
 SOFT_LIMIT_GB := 8
 HARD_LIMIT_GB := 10
 SOFT_LIMIT_KB := 8388608
