@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph allowed[Allowed at order time]
+    A1[Order qty, value, lead time]
+    A2[Calendar + plant / org / category]
+  end
+  subgraph excluded[Excluded in v2]
+    X1[Downstream snapshot fields]
+    X2[Example: outstanding_qty, saleable_inventory]
+  end
+  allowed --> M[Model features]
+  excluded -.->|not used|M
+
+  classDef step rx:8,ry:8,stroke-width:1.5px
+  class A1,A2,X1,X2,M step

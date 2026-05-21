@@ -166,70 +166,41 @@ Raw SAP inputs are documented in [data/README.md](data/README.md)[^kaggle].
 
 End-to-end capstone flow:
 
-```mermaid
-%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
-flowchart LR
-  subgraph ingest[Data]
-    R[Raw SAP CSVs]
-    M[Master tables + BRD metrics]
-  end
-  subgraph features[Features]
-    V[v2 order-time modeling table]
-  end
-  subgraph models[Models]
-    T[Train + compare under protocol]
-    A[Metrics JSON + joblibs + figures]
-  end
-  subgraph ship[Deliverables]
-    H[HTML side-by-side + health dashboard]
-    Q[Quarto report to PDF]
-  end
-  R --> M --> V --> T --> A --> H
-  A --> Q
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/end-to-end-dark.png">
+    <img src="docs/diagrams/end-to-end.png" alt="End-to-end capstone data and modeling flow" width="900" />
+  </picture>
+</p>
 
 Order-time feature boundary (`v2`):
 
-```mermaid
-%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
-flowchart TB
-  subgraph allowed[Allowed at order time]
-    A1[Order qty, value, lead time]
-    A2[Calendar + plant / org / category]
-  end
-  subgraph excluded[Excluded in v2]
-    X1[Downstream snapshot fields]
-    X2[Example: outstanding_qty, saleable_inventory]
-  end
-  allowed --> M[Model features]
-  excluded -.->|not used|M
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/feature-boundary-dark.png">
+    <img src="docs/diagrams/feature-boundary.png" alt="Order-time feature boundary for v2" width="720" />
+  </picture>
+</p>
 
 Temporal holdout (plain English: train on older orders, test on later orders):
 
-```mermaid
-%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
-flowchart LR
-  subgraph past[Older orders]
-    TR[Training fit]
-  end
-  subgraph future[Later orders]
-    TE[Temporal holdout eval]
-  end
-  past -->|chronology| future
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/temporal-holdout-dark.png">
+    <img src="docs/diagrams/temporal-holdout.png" alt="Temporal holdout train and test split" width="720" />
+  </picture>
+</p>
 
 Canonical pipeline steps:
 
-```mermaid
-%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
-flowchart TD
-  S1[1. run_pipeline.py — master + BRD]
-  S2[2. build_targets — v2 modeling CSV]
-  S3[3. run_modeling.py — train, metrics, dashboards]
-  S4[4. generate_model_performance_side_by_side_html.py]
-  S1 --> S2 --> S3 --> S4
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/pipeline-steps-dark.png">
+    <img src="docs/diagrams/pipeline-steps.png" alt="Canonical v2 pipeline script order" width="640" />
+  </picture>
+</p>
+
+<p align="center"><sub>Diagram sources: <a href="docs/diagrams/">docs/diagrams/</a> · re-render with <code>./scripts/render_readme_diagrams.sh</code></sub></p>
 
 ---
 

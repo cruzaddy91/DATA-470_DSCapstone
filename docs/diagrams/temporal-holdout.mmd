@@ -1,0 +1,11 @@
+flowchart LR
+  subgraph past[Older orders]
+    TR[Training fit]
+  end
+  subgraph future[Later orders]
+    TE[Temporal holdout eval]
+  end
+  past -->|chronology| future
+
+  classDef step rx:8,ry:8,stroke-width:1.5px
+  class TR,TE step
