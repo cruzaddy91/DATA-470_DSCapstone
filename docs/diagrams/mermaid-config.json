@@ -2,17 +2,17 @@
   "theme": "base",
   "flowchart": {
     "curve": "basis",
-    "diagramPadding": 48,
+    "diagramPadding": 32,
     "htmlLabels": true,
-    "nodeSpacing": 44,
-    "rankSpacing": 48,
-    "padding": 14
+    "nodeSpacing": 36,
+    "rankSpacing": 40,
+    "padding": 18
   },
   "themeVariables": {
     "darkMode": false,
     "background": "transparent",
     "fontFamily": "ui-sans-serif, system-ui, sans-serif",
-    "fontSize": "14px",
+    "fontSize": "18px",
     "borderRadius": "8px",
     "primaryColor": "#f4f6f9",
     "primaryTextColor": "#1a2332",

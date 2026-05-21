@@ -1,20 +1,22 @@
-flowchart LR
+flowchart TB
   subgraph ingest[Data]
-    R[Raw SAP CSVs]
-    M[Master tables + BRD metrics]
+    direction LR
+    R[Raw SAP CSVs] --> M[Master tables + BRD metrics]
   end
   subgraph features[Features]
     V[v2 order-time modeling table]
   end
   subgraph models[Models]
-    T[Train + compare under protocol]
-    A[Metrics JSON + joblibs + figures]
+    direction LR
+    T[Train + compare under protocol] --> A[Metrics JSON + joblibs + figures]
   end
   subgraph ship[Deliverables]
+    direction LR
     H[HTML side-by-side + health dashboard]
     Q[Quarto report to PDF]
   end
-  R --> M --> V --> T --> A --> H
+  ingest --> features --> models --> ship
+  A --> H
   A --> Q
 
   classDef step rx:8,ry:8,stroke-width:1.5px

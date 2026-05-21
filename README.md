@@ -169,7 +169,7 @@ End-to-end capstone flow:
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/end-to-end-dark.png">
-    <img src="docs/diagrams/end-to-end.png" alt="End-to-end capstone data and modeling flow" width="900" />
+    <img src="docs/diagrams/end-to-end.png" alt="End-to-end capstone data and modeling flow" style="max-width:100%;height:auto;" />
   </picture>
 </p>
 
@@ -178,7 +178,7 @@ Order-time feature boundary (`v2`):
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/feature-boundary-dark.png">
-    <img src="docs/diagrams/feature-boundary.png" alt="Order-time feature boundary for v2" width="720" />
+    <img src="docs/diagrams/feature-boundary.png" alt="Order-time feature boundary for v2" style="max-width:100%;height:auto;" />
   </picture>
 </p>
 
@@ -187,7 +187,7 @@ Temporal holdout (plain English: train on older orders, test on later orders):
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/temporal-holdout-dark.png">
-    <img src="docs/diagrams/temporal-holdout.png" alt="Temporal holdout train and test split" width="720" />
+    <img src="docs/diagrams/temporal-holdout.png" alt="Temporal holdout train and test split" style="max-width:100%;height:auto;" />
   </picture>
 </p>
 
@@ -196,7 +196,7 @@ Canonical pipeline steps:
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/pipeline-steps-dark.png">
-    <img src="docs/diagrams/pipeline-steps.png" alt="Canonical v2 pipeline script order" width="640" />
+    <img src="docs/diagrams/pipeline-steps.png" alt="Canonical v2 pipeline script order" style="max-width:100%;height:auto;" />
   </picture>
 </p>
 
