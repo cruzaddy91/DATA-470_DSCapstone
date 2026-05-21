@@ -1,10 +1,10 @@
 # Predictive supply chain analytics · SAP backorder risk
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Westminster-DATA--470-8B4513?style=flat-square" alt="DATA-470 capstone" />
-  <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12" />
-  <img src="https://img.shields.io/badge/models-LR%20%7C%20XGBoost%20%7C%20OOF--stack-555555?style=flat-square" alt="Model stack" />
-  <img src="https://img.shields.io/badge/report-Quarto%20%2B%20HTML-0369a1?style=flat-square" alt="Reporting" />
+  <a href="https://github.com/cruzaddy91/DATA-470_DSCapstone"><img src="https://img.shields.io/badge/Westminster-DATA--470-8B4513?style=flat-square" alt="DATA-470 capstone" /></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12" /></a>
+  <a href="docs/md/v2_model_truth.md"><img src="https://img.shields.io/badge/models-LR%20%7C%20XGBoost%20%7C%20OOF--stack-555555?style=flat-square" alt="Model stack" /></a>
+  <a href="report/"><img src="https://img.shields.io/badge/report-Quarto%20%2B%20HTML-0369a1?style=flat-square" alt="Reporting" /></a>
 </p>
 
 <p align="center"><strong>Westminster University · Data Science Capstone · Spring 2026</strong> · <code>SAP Backorder Classifier</code></p>
@@ -17,8 +17,8 @@
 | :-- | :-- |
 | [Overview](#overview) | Capstone scope and audience |
 | [Workflow](#workflow) | Reproduce the official v2 pipeline |
-| [Architecture](#architecture) | End-to-end and modeling diagrams |
 | [Deep dive](#deep-dive) | Problem framing, models, key files |
+| [Architecture](#architecture) | End-to-end and modeling diagrams |
 | [References](#references) | Reports, truth docs, license |
 
 ---
@@ -32,6 +32,11 @@
 | **Owner** | Addy Cruz (Westminster University, DATA-470, Dr. Liang Jingsai) |
 
 This repository is the **authoritative capstone workspace** for Westminster DATA-470 (Spring 2026): curated SAP tables through leakage-aware features, model training, threshold analysis, and publication-ready HTML / Quarto outputs.
+
+> [!TIP]
+> After raw CSVs are in `data/raw/`, run `make v2-all` or `./scripts/run_v2_full_chain.sh` for the full official chain.
+
+---
 
 > [!IMPORTANT]
 > Git tracks pipeline code, configs, frozen metrics, and reports — **not** raw SAP CSVs. Download inputs per [data/README.md](data/README.md).
@@ -48,78 +53,10 @@ This repository is the **authoritative capstone workspace** for Westminster DATA
 
 ---
 
-## Architecture
-
-End-to-end capstone flow:
-
-```mermaid
-%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
-flowchart LR
-  subgraph ingest[Data]
-    R[Raw SAP CSVs]
-    M[Master tables + BRD metrics]
-  end
-  subgraph features[Features]
-    V[v2 order-time modeling table]
-  end
-  subgraph models[Models]
-    T[Train + compare under protocol]
-    A[Metrics JSON + joblibs + figures]
-  end
-  subgraph ship[Deliverables]
-    H[HTML side-by-side + health dashboard]
-    Q[Quarto report to PDF]
-  end
-  R --> M --> V --> T --> A --> H
-  A --> Q
-```
-
-Order-time feature boundary (`v2`):
-
-```mermaid
-%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
-flowchart TB
-  subgraph allowed[Allowed at order time]
-    A1[Order qty, value, lead time]
-    A2[Calendar + plant / org / category]
-  end
-  subgraph excluded[Excluded in v2]
-    X1[Downstream snapshot fields]
-    X2[Example: outstanding_qty, saleable_inventory]
-  end
-  allowed --> M[Model features]
-  excluded -.->|not used|M
-```
-
-Temporal holdout (plain English: train on older orders, test on later orders):
-
-```mermaid
-%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
-flowchart LR
-  subgraph past[Older orders]
-    TR[Training fit]
-  end
-  subgraph future[Later orders]
-    TE[Temporal holdout eval]
-  end
-  past -->|chronology| future
-```
-
-Canonical pipeline steps:
-
-```mermaid
-%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
-flowchart TD
-  S1[1. run_pipeline.py — master + BRD]
-  S2[2. build_targets — v2 modeling CSV]
-  S3[3. run_modeling.py — train, metrics, dashboards]
-  S4[4. generate_model_performance_side_by_side_html.py]
-  S1 --> S2 --> S3 --> S4
-```
-
----
-
 ## Deep dive
+
+<details>
+<summary><strong>Expand: institution, source of truth, models, key files, quick start</strong></summary>
 
 ### Institution
 
@@ -219,6 +156,94 @@ DATA-470_DSCapstone/
 
 MIT — see [LICENSE](LICENSE).
 
+</details>
+
+Raw SAP inputs are documented in [data/README.md](data/README.md)[^kaggle].
+
+---
+
+## Architecture
+
+End-to-end capstone flow:
+
+```mermaid
+%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
+flowchart LR
+  subgraph ingest[Data]
+    R[Raw SAP CSVs]
+    M[Master tables + BRD metrics]
+  end
+  subgraph features[Features]
+    V[v2 order-time modeling table]
+  end
+  subgraph models[Models]
+    T[Train + compare under protocol]
+    A[Metrics JSON + joblibs + figures]
+  end
+  subgraph ship[Deliverables]
+    H[HTML side-by-side + health dashboard]
+    Q[Quarto report to PDF]
+  end
+  R --> M --> V --> T --> A --> H
+  A --> Q
+```
+
+Order-time feature boundary (`v2`):
+
+```mermaid
+%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
+flowchart TB
+  subgraph allowed[Allowed at order time]
+    A1[Order qty, value, lead time]
+    A2[Calendar + plant / org / category]
+  end
+  subgraph excluded[Excluded in v2]
+    X1[Downstream snapshot fields]
+    X2[Example: outstanding_qty, saleable_inventory]
+  end
+  allowed --> M[Model features]
+  excluded -.->|not used|M
+```
+
+Temporal holdout (plain English: train on older orders, test on later orders):
+
+```mermaid
+%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
+flowchart LR
+  subgraph past[Older orders]
+    TR[Training fit]
+  end
+  subgraph future[Later orders]
+    TE[Temporal holdout eval]
+  end
+  past -->|chronology| future
+```
+
+Canonical pipeline steps:
+
+```mermaid
+%%{init: {'theme':'neutral', 'htmlLabels': true, 'flowchart': {'curve': 'basis', 'diagramPadding': 130}, 'themeVariables': {'fontFamily': 'ui-sans-serif, system-ui, sans-serif'}}}%%
+flowchart TD
+  S1[1. run_pipeline.py — master + BRD]
+  S2[2. build_targets — v2 modeling CSV]
+  S3[3. run_modeling.py — train, metrics, dashboards]
+  S4[4. generate_model_performance_side_by_side_html.py]
+  S1 --> S2 --> S3 --> S4
+```
+
+---
+
+## Markdown lint checklist (workspace)
+
+These align with the workspace [`.markdownlint.json`](../../.markdownlint.json) when this repo is cloned under `~/Workspace` and prevent the usual IDE Problems noise:
+
+- **Fenced code blocks:** always declare a language (for example `bash`, `text`, or `mermaid`), not a bare opening fence.
+- **Headings and lists:** keep one blank line after a heading before body text or lists.
+- **Duplicate headings:** do not repeat the same heading text at the same level in one file (rename one section if you need two similar blocks).
+- **Tables:** pad columns so pipes line up with the header row, and keep spaces inside pipes (`| cell |`).
+
+Run `~/Workspace/automation/ssvc/validate.sh` after substantive Markdown edits. With guardrails hooks installed, **staged** `.md` files are linted on commit when a `.markdownlint.json` is found walking up from the repo root (nested repos under `school/` pick up the workspace config).
+
 ---
 
 ## References
@@ -232,4 +257,6 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-<!-- readme-normalize: workspace-template v1 -->
+*Last updated: 2026-05-21.*
+
+[^kaggle]: [SAP dataset (BigQuery export)](https://www.kaggle.com/datasets/mustafakeser4/sap-dataset-bigquery-dataset); raw files stay local and out of git.
