@@ -1,7 +1,13 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# The inversion matters: real env files never ship, the example always does.
+# A bare `.env` rule leaves .env.production and .env.local free to be committed.
 .env
+.env.*
+!.env.example
+
 .venv/
 .venv_pr/
 .venv-v2/
