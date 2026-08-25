@@ -35,7 +35,10 @@ def main() -> int:
 
     order = pd.read_csv(dataset_path, low_memory=False)
     classification_metrics = json.loads(classification_path.read_text()) if classification_path.exists() else {}
-    overfit_eval = json.loads(overfit_path.read_text()) if overfit_path.exists() else {}
+    # Loaded but not yet emitted. The export prints classification and regression
+    # metrics below; the overfit evaluation was never wired in. Underscored rather
+    # than deleted so the gap stays visible instead of disappearing quietly.
+    _overfit_eval = json.loads(overfit_path.read_text()) if overfit_path.exists() else {}
     regression_metrics = json.loads(regression_path.read_text()) if regression_path.exists() else {}
 
     print("Order-time v2 dataset shape:", order.shape)

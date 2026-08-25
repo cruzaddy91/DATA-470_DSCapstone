@@ -61,7 +61,6 @@ def _utility_sweep(y_true: np.ndarray, y_proba: np.ndarray, k: float) -> dict[st
     r = recall[:-1]
     t = thresholds
     n_pos = float(y_true.sum())
-    n_neg = float(len(y_true) - y_true.sum())
 
     # At each threshold:
     #   TP = recall * n_pos

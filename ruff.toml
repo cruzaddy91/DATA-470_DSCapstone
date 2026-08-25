@@ -1,0 +1,32 @@
+# Ruff configuration.
+#
+# WHY THIS FILE EXISTS
+#
+# CI previously ran `ruff check src scripts tests || true`, which meant the lint
+# step could never fail. That is worse than having no lint step, because it looks
+# like a gate and is not one.
+#
+# It could not simply be switched on, because with no config ruff applies
+# whatever its current default rule set happens to be. On ruff 0.16.4 that
+# surfaced 121 findings across 21 rule families, most of them stylistic. Worse,
+# an unpinned default set means a future ruff release can fail this build with no
+# commit behind it. That exact drift broke CI in the operational-health-dashboards
+# repo, which passed in April 2026 and failed in August on identical code.
+#
+# So the rule set is chosen explicitly here rather than inherited.
+
+# E4  imports          E7  statements
+# E9  runtime errors   F   pyflakes (undefined names, unused imports/variables)
+#
+# This is the classic minimal set and catches real defects rather than style
+# preferences. Widen it deliberately later if you want; do not let it widen by
+# itself.
+[lint]
+select = ["E4", "E7", "E9", "F"]
+
+# E402, module-import-not-at-top-of-file.
+# Ignored on purpose. Scripts in this repo adjust sys.path so that `src` is
+# importable before importing from it, which is standard in a data science tree
+# laid out this way and is not a defect. 15 of the original findings were this
+# one rule.
+ignore = ["E402"]

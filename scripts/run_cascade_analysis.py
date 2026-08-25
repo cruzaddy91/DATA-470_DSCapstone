@@ -169,7 +169,8 @@ def main() -> int:
         "cascades": [],
     }
     for cfg in CASCADE_CONFIGS:
-        e1 = models.get(cfg["stage1"]); e2 = models.get(cfg["stage2"])
+        e1 = models.get(cfg["stage1"])
+        e2 = models.get(cfg["stage2"])
         if not e1 or not e2:
             continue
         p1 = np.asarray(e1.get("y_proba", []), dtype=float)

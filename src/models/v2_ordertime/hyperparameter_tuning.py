@@ -19,15 +19,12 @@ read that file (when present) and fall back to hand-defaults otherwise.
 
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
-from sklearn.base import clone
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score
@@ -38,7 +35,9 @@ from sklearn.preprocessing import MaxAbsScaler
 from .preprocessing import build_v2_column_preprocessor
 
 try:
-    from lightgbm import LGBMClassifier
+    # Imported purely to probe whether lightgbm is installed; HAS_LGBM is what
+    # the rest of the module reads (see the guard at the top of tune_lightgbm).
+    from lightgbm import LGBMClassifier  # noqa: F401
     HAS_LGBM = True
 except ImportError:
     HAS_LGBM = False

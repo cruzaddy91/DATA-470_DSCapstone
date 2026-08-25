@@ -10,7 +10,6 @@ BRD metrics (master_order_fulfillment_brd, shipment_history, master_woc) are bui
 via build_brd_metrics.py.
 """
 
-import os
 from pathlib import Path
 from typing import Optional, Union
 
