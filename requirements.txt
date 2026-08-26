@@ -35,7 +35,7 @@ catboost>=1.2
 imbalanced-learn>=0.12.0,<0.14
 
 # Utils
-python-dotenv>=1.0
+python-dotenv>=1.2.3
 
 # Poster PPTX (fact build, ``build_poster.py`` / ``render_poster_pptx.py``)
 python-pptx>=0.6,<2
