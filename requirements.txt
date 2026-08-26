@@ -14,7 +14,7 @@ kagglehub>=0.3
 
 # Jupyter
 jupyter>=1.0
-ipykernel>=6.0
+ipykernel>=7.3.0
 notebook>=7.0
 
 # Analysis and modeling
