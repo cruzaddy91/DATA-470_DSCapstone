@@ -1,0 +1,18 @@
+# Repo archetype declaration. Read by automation/repo-audit/.
+# Declared, not detected: the repo says what it is, the audit never guesses.
+#
+# python-service rather than python-data. Detection suggested both, but
+# python-data requires a notebooks/ directory and this repo has none; the
+# modeling work lives in src/models/ as importable modules, not notebooks.
+archetype: python-service
+ecosystem: python
+
+# Deviations are DECLARED, never silently tolerated.
+exceptions:
+  - rule: layout.forbidden_at_root
+    reason: >-
+      run_pipeline.py is the deliberate top-level entrypoint for the whole
+      capstone pipeline, which is a normal shape for a data science repo and is
+      documented in the README. Everything else importable lives under src/.
+      Waiving the rule rather than burying the entrypoint one directory deeper
+      where nobody would find it.
