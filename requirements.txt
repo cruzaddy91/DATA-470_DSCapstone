@@ -39,4 +39,4 @@ python-dotenv>=1.0
 
 # Poster PPTX (fact build, ``build_poster.py`` / ``render_poster_pptx.py``)
 python-pptx>=0.6,<2
-Pillow>=10.0,<12
+Pillow>=12.3.0,<13
